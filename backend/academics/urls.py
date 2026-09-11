@@ -1,4 +1,12 @@
-"""Academics API routes. Endpoints get added as views are built."""
-from django.urls import path
+"""Academics API routes."""
+from rest_framework.routers import DefaultRouter
 
-urlpatterns: list[path] = []
+from .views import CourseViewSet, InstructorViewSet, MajorViewSet, TermViewSet
+
+router = DefaultRouter()
+router.register("majors", MajorViewSet, basename="major")
+router.register("courses", CourseViewSet, basename="course")
+router.register("instructors", InstructorViewSet, basename="instructor")
+router.register("terms", TermViewSet, basename="term")
+
+urlpatterns = router.urls
