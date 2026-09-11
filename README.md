@@ -39,6 +39,24 @@ Then open:
 - API health check: http://localhost:8000/api/health/
 - Admin / moderation panel: http://localhost:8000/admin/
 
+## Frontend — local setup
+
+Requires Node 20+. In a second terminal, with the Django server running:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. The Vite dev server proxies `/api` to Django on
+port 8000, so session and CSRF cookies work as one origin.
+
+**Auth:** sign-in only — there is no sign-up. Entering a `@gju.edu.jo` email for
+the first time creates the account on the spot and signs you in (the real GJU
+credential check is stubbed for now); the password is stored as an Argon2 hash
+via Django auth. Returning users are checked against that hash.
+
 ### Using Postgres + MinIO (closer to production)
 
 ```bash
