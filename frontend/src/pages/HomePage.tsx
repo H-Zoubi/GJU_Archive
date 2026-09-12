@@ -40,6 +40,7 @@ export default function HomePage() {
       {view.name === "browse" && (
         <BrowsePage
           myMajor={major}
+          ownMajor={user?.major?.slug ?? null}
           onMajorChange={setMajor}
           onOpenSubject={(slug, title) =>
             setView({ name: "subject", slug, title })

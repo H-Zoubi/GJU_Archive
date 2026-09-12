@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter
 
@@ -58,7 +58,13 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         qs = Course.objects.select_related("subject").order_by("code")
         major = self.request.query_params.get("major")
         if major:
-            qs = qs.filter(majors__slug=major)
+            # Students on a major also take the courses everyone takes —
+            # German, Maths, University Requirements — which belong to no
+            # major. Excluding them made a Translation student's search for
+            # "german" return nothing, so the filter includes them.
+            qs = qs.filter(
+                Q(majors__slug=major) | Q(subject__is_university_wide=True)
+            )
         subject = self.request.query_params.get("subject")
         if subject:
             qs = qs.filter(subject__slug=subject)

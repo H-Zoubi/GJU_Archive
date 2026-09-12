@@ -9,6 +9,8 @@ import {
 interface Props {
   /** The selected major slug; starts as the signed-in student's own. */
   myMajor?: string | null;
+  /** The student's actual major, so we only badge it when it really is theirs. */
+  ownMajor?: string | null;
   /** Lifted so the choice survives navigating into a subject and back. */
   onMajorChange: (slug: string | null) => void;
   onOpenSubject: (slug: string, name: string) => void;
@@ -17,6 +19,7 @@ interface Props {
 
 export default function BrowsePage({
   myMajor,
+  ownMajor,
   onMajorChange,
   onOpenSubject,
   onOpenCourse,
@@ -28,6 +31,9 @@ export default function BrowsePage({
   const setMajor = onMajorChange;
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<CourseSummary[] | null>(null);
+  // How many the same search finds with no major filter. Non-zero only when
+  // the filter is what emptied the results, so we can say so.
+  const [hiddenByFilter, setHiddenByFilter] = useState(0);
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -48,11 +54,24 @@ export default function BrowsePage({
       return;
     }
     setSearching(true);
-    const timer = setTimeout(() => {
-      catalog
-        .courses({ search: text, major: major ?? undefined })
-        .then((page) => setHits(page.results))
-        .finally(() => setSearching(false));
+    const timer = setTimeout(async () => {
+      try {
+        const page = await catalog.courses({
+          search: text,
+          major: major ?? undefined,
+        });
+        setHits(page.results);
+        // Empty because of the filter, or genuinely nothing? Ask again
+        // without the major so we can tell the student which it is.
+        if (page.count === 0 && major) {
+          const everywhere = await catalog.courses({ search: text });
+          setHiddenByFilter(everywhere.count);
+        } else {
+          setHiddenByFilter(0);
+        }
+      } finally {
+        setSearching(false);
+      }
     }, 250);
     return () => clearTimeout(timer);
   }, [query, major]);
@@ -97,7 +116,7 @@ export default function BrowsePage({
             </option>
           ))}
         </select>
-        {myMajor && major === myMajor && (
+        {ownMajor && major === ownMajor && (
           <span className="text-slate-400">· your major</span>
         )}
       </div>
@@ -121,25 +140,36 @@ export default function BrowsePage({
                 </button>
               </li>
             ))}
-            {!searching && hits.length === 0 && (
+            {!searching && hits.length === 0 && hiddenByFilter === 0 && (
               <li className="px-4 py-6 text-center text-slate-400">
                 Nothing matched “{query}”.
+              </li>
+            )}
+            {!searching && hits.length === 0 && hiddenByFilter > 0 && (
+              <li className="px-4 py-6 text-center">
+                <p className="text-slate-700">
+                  No match in this major — but{" "}
+                  {hiddenByFilter === 1
+                    ? "1 course elsewhere matches"
+                    : `${hiddenByFilter} courses elsewhere match`}{" "}
+                  “{query}”.
+                </p>
+                <button
+                  onClick={() => setMajor(null)}
+                  className="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+                >
+                  Clear the major filter
+                </button>
               </li>
             )}
           </ul>
         </section>
       ) : (
         <>
-          <SubjectGrid
-            title="Subjects"
-            subjects={mine}
-            major={major}
-            onOpen={onOpenSubject}
-          />
+          <SubjectGrid title="Subjects" subjects={mine} onOpen={onOpenSubject} />
           <SubjectGrid
             title="Taken across majors"
             subjects={shared}
-            major={major}
             onOpen={onOpenSubject}
             muted
           />
@@ -152,13 +182,11 @@ export default function BrowsePage({
 function SubjectGrid({
   title,
   subjects,
-  major,
   onOpen,
   muted,
 }: {
   title: string;
   subjects: Subject[];
-  major: string | null;
   onOpen: (slug: string, name: string) => void;
   muted?: boolean;
 }) {
@@ -181,7 +209,6 @@ function SubjectGrid({
             <div className="mt-1 text-xs text-slate-500">
               {subject.course_count} course
               {subject.course_count === 1 ? "" : "s"}
-              {major ? " · filtered by major" : ""}
             </div>
             <div className="mt-2 font-mono text-[11px] text-slate-400">
               {subject.prefixes.join(" · ")}
