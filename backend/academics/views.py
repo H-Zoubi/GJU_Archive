@@ -89,6 +89,23 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         subject = self.request.query_params.get("subject")
         if subject:
             qs = qs.filter(subject__slug=subject)
+            if not major:
+                # The subject grid groups by code prefix, so without a major
+                # picked it would otherwise list every CS-prefixed course —
+                # including ones like CS115 that no CS student ever takes,
+                # because other majors' plans claim it instead. Narrow to the
+                # majors this subject actually belongs to (Course.majors is
+                # itself plan-derived, see seed_subjects). University-wide
+                # subjects (German, Maths…) belong to no major, so they stay
+                # unfiltered.
+                subject_majors = Major.objects.filter(
+                    prefixes__subject__slug=subject
+                ).distinct()
+                if subject_majors.exists():
+                    qs = qs.filter(
+                        Q(plan_entries__major__in=subject_majors)
+                        | Q(majors__in=subject_majors)
+                    )
         if self.action == "retrieve":
             qs = qs.prefetch_related(
                 "majors", "prerequisites", "offerings__term", "offerings__instructors"

@@ -18,12 +18,21 @@ over the years. So several prefixes map to one subject:
 The mapping lives in the database (Subject, SubjectPrefix), so it can be fixed
 from the admin later without a code change.
 
+Course.majors itself is set from the student's perspective, not the
+department's: a course a published study plan names (ProgramCourse, built by
+import_study_plans from the actual PDFs) is attached to the majors that plan
+belongs to. The prefix -> major mapping above is only a fallback for courses
+no plan mentions at all — otherwise CS115 (a service course non-CS/CE majors
+take, and the CS plan itself never lists) would wrongly show up as a "CS"
+course just because of its prefix. Run import_study_plans before this command
+so the plan data is there to prefer.
+
     python manage.py seed_subjects
 """
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from academics.models import Course, Major, Subject, SubjectPrefix, code_prefix
+from academics.models import Course, Major, ProgramCourse, Subject, SubjectPrefix, code_prefix
 
 # name, university_wide, [prefixes], [major codes]
 SUBJECTS = [
@@ -94,6 +103,14 @@ class Command(BaseCommand):
             f"prefixes {SubjectPrefix.objects.count()}"
         )
 
+        # A study plan naming a course is hard evidence of who takes it, so
+        # prefer that over the code-prefix guess wherever a plan exists.
+        plan_majors = {}
+        for course_id, major_id in ProgramCourse.objects.values_list(
+            "course_id", "major_id"
+        ):
+            plan_majors.setdefault(course_id, set()).add(major_id)
+
         # Attach every course, backfilling code_prefix for rows imported before
         # the field existed.
         attached = unmatched = 0
@@ -105,11 +122,15 @@ class Command(BaseCommand):
                 code_prefix=prefix, subject=subject
             )
             if subject:
-                course.majors.set(prefix_to_majors.get(prefix, []))
                 attached += 1
             else:
                 unmatched += 1
                 missing[prefix] = missing.get(prefix, 0) + 1
+
+            majors_for_course = plan_majors.get(
+                course.pk, {m.pk for m in prefix_to_majors.get(prefix, [])}
+            )
+            course.majors.set(majors_for_course)
 
         self.stdout.write(
             self.style.SUCCESS(f"Attached {attached} courses to a subject.")
