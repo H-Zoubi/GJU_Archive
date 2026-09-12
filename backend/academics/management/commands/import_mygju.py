@@ -186,8 +186,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        with open(options["path"], encoding="utf-8") as handle:
+        with open(options["path"], encoding="utf-8", errors="replace") as handle:
             text = handle.read()
+
+        if "sections_tbl_data" in text:
+            return self._handle_html(text, options)
 
         records, page_year, page_season = parse(text)
         year = options["year"] or page_year
@@ -217,6 +220,98 @@ class Command(BaseCommand):
 
         term, _ = Term.objects.get_or_create(season=season, year=year)
         self._load(parsed, term)
+
+    def _handle_html(self, html, options):
+        """Saved MyGJU page: every row states its own term via data-rk."""
+        from academics.mygju_html import parse_sections
+
+        sections = parse_sections(html)
+        if not sections:
+            raise CommandError(
+                "No sections found — is this a saved Course Sections page?"
+            )
+
+        by_term = {}
+        for section in sections:
+            by_term.setdefault((section.year, section.season), []).append(section)
+
+        self.stdout.write(f"Parsed {len(sections)} sections (HTML)")
+        for (year, season), group in sorted(by_term.items()):
+            self.stdout.write(f"  {season} {year}: {len(group)} sections")
+
+        # A CLI override here would silently mislabel rows, since the page can
+        # hold several terms. Refuse rather than write the wrong semester.
+        if options["season"] or options["year"]:
+            raise CommandError(
+                "This page states its own term per row; drop --season/--year."
+            )
+
+        if options["dry_run"]:
+            for section in sections[:5]:
+                self.stdout.write(
+                    f"  {section.code} sec {section.section} {section.name!r} "
+                    f"{section.season} {section.year} "
+                    f"instructors={section.instructors} "
+                    f"meetings={len(section.meetings)}"
+                )
+            self.stdout.write(self.style.WARNING("Dry run — nothing written."))
+            return
+
+        for (year, season), group in sorted(by_term.items()):
+            term, _ = Term.objects.get_or_create(season=season, year=year)
+            self._load_sections(group, term)
+
+    @transaction.atomic
+    def _load_sections(self, sections, term):
+        courses = instructors = offerings = meetings = 0
+
+        for section in sections:
+            code = normalize_code(section.code)
+            course, created = Course.objects.update_or_create(
+                code=code,
+                defaults={
+                    "display_code": section.code,
+                    "name": section.name,
+                    "credit_hours": section.credit_hours or None,
+                },
+            )
+            courses += int(created)
+
+            people = []
+            for name in section.instructors:
+                instructor, made = Instructor.objects.get_or_create(full_name=name)
+                instructors += int(made)
+                people.append(instructor)
+
+            offering, created = CourseOffering.objects.update_or_create(
+                course=course,
+                term=term,
+                section_number=section.section,
+                defaults={"capacity": section.capacity},
+            )
+            offerings += int(created)
+            offering.instructors.set(people)
+
+            # Rebuild the schedule so re-importing a corrected page stays clean.
+            offering.meeting_times.all().delete()
+            is_lab = "lab" in section.name.lower()
+            for meeting in section.meetings:
+                MeetingTime.objects.create(
+                    offering=offering,
+                    kind=MeetingTime.Kind.LAB if is_lab else MeetingTime.Kind.LECTURE,
+                    day_of_week=meeting.day,
+                    start_time=meeting.start,
+                    end_time=meeting.end,
+                    room=meeting.room,
+                )
+                meetings += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"  {term}: +{courses} courses, +{instructors} instructors, "
+                f"+{offerings} offerings, {meetings} meeting times"
+            )
+        )
 
     def _preview(self, records):
         for record in records[:5]:
