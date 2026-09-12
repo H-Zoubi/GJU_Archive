@@ -11,6 +11,8 @@ export interface Subject {
   prefixes: string[];
 }
 
+export type Requirement = "compulsory" | "elective";
+
 export interface CourseSummary {
   id: number;
   code: string;
@@ -18,6 +20,11 @@ export interface CourseSummary {
   name: string;
   credit_hours: number | null;
   slug: string;
+  // Only set when the request named a major, since a course is compulsory
+  // *for* a degree, not in itself. Null also covers courses that major's
+  // study plan simply does not list.
+  requirement: Requirement | null;
+  requirement_category: "university" | "school" | "program" | "remedial" | null;
 }
 
 export interface Term {
@@ -94,12 +101,16 @@ export const catalog = {
     subject?: string;
     major?: string;
     search?: string;
+    requirement?: Requirement;
     page?: number;
   }): Promise<Page<CourseSummary>> {
     const query = new URLSearchParams();
     if (params.subject) query.set("subject", params.subject);
     if (params.major) query.set("major", params.major);
     if (params.search) query.set("search", params.search);
+    // Ignored by the API without a major, which is correct rather than an
+    // error: "compulsory for nobody in particular" has no meaning.
+    if (params.requirement) query.set("requirement", params.requirement);
     if (params.page && params.page > 1) query.set("page", String(params.page));
     return getJson<Page<CourseSummary>>(`/api/courses/?${query}`);
   },

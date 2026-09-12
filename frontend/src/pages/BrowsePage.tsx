@@ -3,6 +3,7 @@ import {
   catalog,
   type CourseSummary,
   type Major,
+  type Requirement,
   type Subject,
 } from "../lib/catalog";
 
@@ -36,6 +37,11 @@ export default function BrowsePage({
   const [hiddenByFilter, setHiddenByFilter] = useState(0);
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
+  // null = browse by subject as before. Set only with a major chosen, since
+  // that is the only case where "required" means anything.
+  const [requirement, setRequirement] = useState<Requirement | null>(null);
+  const [planCourses, setPlanCourses] = useState<CourseSummary[] | null>(null);
+  const [planTotal, setPlanTotal] = useState(0);
 
   useEffect(() => {
     Promise.all([catalog.subjects(), catalog.majors()])
@@ -75,6 +81,28 @@ export default function BrowsePage({
     }, 250);
     return () => clearTimeout(timer);
   }, [query, major]);
+
+  // Clearing the major has to clear the requirement view too, or the page
+  // would sit on "Required courses" for nobody.
+  useEffect(() => {
+    if (!major) setRequirement(null);
+  }, [major]);
+
+  useEffect(() => {
+    if (!major || !requirement) {
+      setPlanCourses(null);
+      return;
+    }
+    let live = true;
+    catalog.courses({ major, requirement }).then((page) => {
+      if (!live) return;
+      setPlanCourses(page.results);
+      setPlanTotal(page.count);
+    });
+    return () => {
+      live = false;
+    };
+  }, [major, requirement]);
 
   // When a major is chosen, its own subjects come first and the
   // everyone-takes-it ones (German, Maths…) drop to a separate group.
@@ -119,6 +147,31 @@ export default function BrowsePage({
         {ownMajor && major === ownMajor && (
           <span className="text-slate-400">· your major</span>
         )}
+
+        {/* Only meaningful with a major: the study plan is per degree. */}
+        {major && (
+          <div className="ml-auto flex rounded-lg border border-slate-300 overflow-hidden">
+            {(
+              [
+                [null, "All"],
+                ["compulsory", "Required"],
+                ["elective", "Elective"],
+              ] as [Requirement | null, string][]
+            ).map(([value, label]) => (
+              <button
+                key={label}
+                onClick={() => setRequirement(value)}
+                className={`px-3 py-1.5 ${
+                  requirement === value
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {hits !== null ? (
@@ -137,6 +190,7 @@ export default function BrowsePage({
                     {course.display_code}
                   </span>
                   <span className="text-slate-600"> — {course.name}</span>
+                  <RequirementBadge course={course} />
                 </button>
               </li>
             ))}
@@ -164,6 +218,40 @@ export default function BrowsePage({
             )}
           </ul>
         </section>
+      ) : planCourses !== null ? (
+        <section>
+          <h2 className="text-sm font-medium text-slate-500 mb-3">
+            {planTotal}{" "}
+            {requirement === "compulsory" ? "required" : "elective"} course
+            {planTotal === 1 ? "" : "s"} in this study plan
+          </h2>
+          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+            {planCourses.map((course) => (
+              <li key={course.id}>
+                <button
+                  onClick={() => onOpenCourse(course.code)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50"
+                >
+                  <span className="font-mono text-slate-900">
+                    {course.display_code}
+                  </span>
+                  <span className="text-slate-600"> — {course.name}</span>
+                  <RequirementBadge course={course} showCategory />
+                </button>
+              </li>
+            ))}
+            {planCourses.length === 0 && (
+              <li className="px-4 py-6 text-center text-slate-400">
+                No study plan has been imported for this major yet.
+              </li>
+            )}
+            {planCourses.length < planTotal && (
+              <li className="px-4 py-3 text-center text-xs text-slate-400">
+                Showing the first {planCourses.length} of {planTotal}.
+              </li>
+            )}
+          </ul>
+        </section>
       ) : (
         <>
           <SubjectGrid title="Subjects" subjects={mine} onOpen={onOpenSubject} />
@@ -176,6 +264,36 @@ export default function BrowsePage({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Says whether a course is required, and nothing at all when we don't know.
+ * A course the study plan never mentions must not be labelled "elective" —
+ * that would state something the plan does not.
+ */
+function RequirementBadge({
+  course,
+  showCategory,
+}: {
+  course: CourseSummary;
+  showCategory?: boolean;
+}) {
+  if (!course.requirement) return null;
+  const required = course.requirement === "compulsory";
+  return (
+    <span
+      className={`ml-2 rounded px-1.5 py-0.5 text-[11px] align-middle ${
+        required
+          ? "bg-slate-900 text-white"
+          : "bg-slate-100 text-slate-600 border border-slate-200"
+      }`}
+    >
+      {required ? "Required" : "Elective"}
+      {showCategory && course.requirement_category
+        ? ` · ${course.requirement_category}`
+        : ""}
+    </span>
   );
 }
 
