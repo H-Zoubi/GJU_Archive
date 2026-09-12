@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
+import FileViewer from "./FileViewer";
 import {
   GateError,
   getDownloadUrl,
@@ -89,6 +90,7 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
   const [resources, setResources] = useState<Resource[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [viewing, setViewing] = useState<Resource | null>(null);
 
   const refresh = useCallback(() => {
     listResources({ course: courseCode })
@@ -183,16 +185,32 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
                   Open link
                 </a>
               ) : (
-                <button
-                  onClick={() => download(resource)}
-                  className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  Download
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => setViewing(resource)}
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={() => download(resource)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    Download
+                  </button>
+                </div>
               )}
             </li>
           ))}
         </ul>
+      )}
+
+      {viewing && (
+        <FileViewer
+          resource={viewing}
+          onClose={() => setViewing(null)}
+          onDownload={download}
+        />
       )}
     </section>
   );

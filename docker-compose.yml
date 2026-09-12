@@ -103,6 +103,9 @@ services:
       VAULT_ADDR: http://vault:8200
       VAULT_DEV_ROOT_TOKEN: dev-root-token
       S3_ENDPOINT_URL: http://minio:9000
+      # Django reaches MinIO over the docker network name above; the browser
+      # can only reach it on the port published to the host.
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
       S3_BUCKET: gju-vault-dev
