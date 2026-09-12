@@ -59,6 +59,9 @@ SCHEDULE_RE = re.compile(
 
 # Course codes as the plans write them: ARB0099, CS116, MADAF 754, ME 301.
 CODE_RE = re.compile(r"^[A-Z]{2,6}\s?\d{2,4}[A-Z0-9-]*$")
+# Same shape, but matching just the start of a text line rather than a whole
+# table cell — used when a page has no ruled table to split into cells.
+CODE_AT_LINE_START_RE = re.compile(r"^([A-Z]{2,6}\s?\d{2,4}[A-Z0-9-]*)\b")
 
 CATEGORY_BY_NUMBER = {
     "1": ProgramCourse.Category.UNIVERSITY,
@@ -91,11 +94,22 @@ def classify(number: str, title: str, stated=None):
     top = number.split(".")[0]
     text = title.lower()
 
+    # The title is trusted over the number: most plans promote program
+    # requirements to their own top-level "3", but International Accounting
+    # nests them as "2.2 Program Requirements (Compulsory for all tracks)"
+    # under the same "2" as School Requirements. Reading the words avoids
+    # filing those as school requirements just because of where they sit.
     if "remedial" in text:
         category = ProgramCourse.Category.REMEDIAL
+    elif "program" in text or "programme" in text:
+        category = ProgramCourse.Category.PROGRAM
+    elif "school" in text:
+        category = ProgramCourse.Category.SCHOOL
+    elif "university" in text:
+        category = ProgramCourse.Category.UNIVERSITY
     else:
-        # Anything past school requirements is programme-specific, including
-        # the stream/track sections that majors like Architecture use.
+        # No category word at all — a bare "1.1 Compulsory" under
+        # "1 University Requirements". Fall back to the top-level number.
         category = CATEGORY_BY_NUMBER.get(top, ProgramCourse.Category.PROGRAM)
 
     has_elective = "elective" in text
@@ -179,7 +193,8 @@ def parse_plan(path):
             if schedule and not headings and rows:
                 break
 
-            for table in page.find_tables():
+            tables = page.find_tables()
+            for table in tables:
                 top = table.bbox[1]
                 above = [h for position, h in headings if position <= top]
                 section = above[-1] if above else current
@@ -207,6 +222,41 @@ def parse_plan(path):
                         track=track[:120],
                         confident=confident,
                         note=note,
+                    ))
+
+            # Some plans (Computer Science) print these tables without ruled
+            # borders, so pdfplumber's grid detector finds nothing and the
+            # ruled-table pass above silently loses every course on the page.
+            # Falling back to scanning text lines for a leading course code
+            # catches those, at the cost of not knowing the column layout —
+            # so these rows are always marked unconfident for a human to spot
+            # check, regardless of how sure the heading itself was.
+            if not tables:
+                for line in page.extract_text_lines() or []:
+                    text = line["text"].strip()
+                    match = CODE_AT_LINE_START_RE.match(text)
+                    if not match:
+                        continue
+                    top = line["top"]
+                    above = [h for position, h in headings if position <= top]
+                    section = above[-1] if above else current
+                    if section is None:
+                        continue
+
+                    number, title, category, requirement, _, note = section
+                    track_match = TRACK_RE.search(title)
+                    track = track_match.group(1).strip() if track_match else ""
+                    fallback_note = "no ruled table on this page; verify against the PDF"
+                    rows.append(PlanRow(
+                        code=normalize_code(match.group(1)),
+                        name="",
+                        credit_hours=None,
+                        category=category,
+                        requirement=requirement,
+                        section=f"{number} {title}"[:200],
+                        track=track[:120],
+                        confident=False,
+                        note=f"{note}; {fallback_note}" if note else fallback_note,
                     ))
 
             if headings:

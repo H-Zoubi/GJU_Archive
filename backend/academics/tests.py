@@ -27,6 +27,17 @@ class ClassifyHeadingTests(TestCase):
         self.assertEqual(classify("3.1", "Program Requirements (Compulsory)")[0],
                          ProgramCourse.Category.PROGRAM)
 
+    def test_the_words_in_the_title_beat_the_number(self):
+        # International Accounting nests its program-requirement subsections
+        # under the same top-level "2" as School Requirements instead of
+        # promoting them to their own "3", unlike every other plan surveyed.
+        # The number alone would file these as school requirements; the
+        # title says "Program Requirements" and should win.
+        category, _, _, _ = classify(
+            "2.2", "Program Requirements (Compulsory for all tracks)"
+        )
+        self.assertEqual(category, ProgramCourse.Category.PROGRAM)
+
     def test_subsection_inherits_from_its_parent(self):
         # "3.1.1 Program Requirements (Common)" says nothing itself; the
         # plan's "3.1 ... (Compulsory)" above it does.
