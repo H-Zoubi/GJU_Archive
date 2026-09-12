@@ -10,6 +10,7 @@ from .views import (
     UploadCompleteView,
     UploadStartView,
 )
+from .views_ingest import IngestUploadCompleteView, IngestUploadStartView
 from .views_moderation import (
     ModerationActionView,
     ModerationBulkView,
@@ -28,6 +29,12 @@ urlpatterns = [
     path("uploads/<int:pk>/complete/", UploadCompleteView.as_view(), name="upload-complete"),
     path("uploads/mine/", MyUploadsView.as_view(), name="upload-mine"),
     path("links/", LinkCreateView.as_view(), name="link-create"),
+    path("ingest/uploads/", IngestUploadStartView.as_view(), name="ingest-upload-start"),
+    path(
+        "ingest/uploads/<int:pk>/complete/",
+        IngestUploadCompleteView.as_view(),
+        name="ingest-upload-complete",
+    ),
     path("moderation/queue/", ModerationQueueView.as_view(), name="moderation-queue"),
     path("moderation/bulk/", ModerationBulkView.as_view(), name="moderation-bulk"),
     path(

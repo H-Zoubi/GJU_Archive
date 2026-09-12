@@ -23,6 +23,7 @@ from common import filetypes, storage
 from .entitlements import check_download, check_upload
 from .models import Download, Resource
 from .serializers import LinkCreateSerializer, ResourceSerializer, UploadStartSerializer
+from .uploads import verify_uploaded_file
 
 # An entitlement denial maps to the status that tells the SPA what to do:
 # 401 -> show the sign-in screen, 403 -> show why, 404 -> the file is gone.
@@ -245,31 +246,10 @@ class UploadCompleteView(APIView):
         if resource.upload_completed_at is not None:
             return Response(ResourceSerializer(resource).data)
 
-        head = storage.head(resource.file_key)
-        if head is None:
-            return Response(
-                {"detail": "The file did not arrive. Please try the upload again."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        error = verify_uploaded_file(resource)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
-        actual_size = head["ContentLength"]
-        if actual_size > settings.MAX_UPLOAD_BYTES or actual_size != resource.size_bytes:
-            storage.delete(resource.file_key)
-            return Response(
-                {"detail": "The uploaded file does not match what was declared."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        file_type = filetypes.lookup(resource.original_filename)
-        sniff = storage.read_range(resource.file_key, filetypes.SNIFF_BYTES)
-        if file_type is None or not filetypes.signature_matches(file_type, sniff):
-            storage.delete(resource.file_key)
-            return Response(
-                {"detail": "That file is not the type its name claims to be."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        resource.size_bytes = actual_size
         resource.upload_completed_at = timezone.now()
         # Students with a track record skip the queue; everyone else waits for
         # a moderator. Auto-approval is reversible from the admin.

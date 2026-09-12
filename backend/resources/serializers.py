@@ -113,6 +113,19 @@ class UploadStartSerializer(serializers.Serializer):
         return value
 
 
+class IngestUploadStartSerializer(UploadStartSerializer):
+    """
+    Step 1 of an ingest upload — same shape as a student's, plus which
+    importer job this came from. There is no `offering`: an importer knows a
+    course and (loosely) a term, not a specific section.
+    """
+
+    offering = None
+    source = serializers.ChoiceField(
+        choices=[Resource.Source.TELEGRAM_IMPORT, Resource.Source.AUTO_IMPORT]
+    )
+
+
 class LinkCreateSerializer(serializers.ModelSerializer):
     """Videos and external drives are stored as links, never rehosted."""
 

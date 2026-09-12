@@ -34,6 +34,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     is_banned = models.BooleanField(default=False)
 
+    # A bot identity for an importer job (Telegram export, Moodle auto-import
+    # worker), authenticated by token rather than a session. Separate from
+    # `role`, which labels a human's standing in the moderation ladder and
+    # means nothing for a process with no ladder position at all.
+    is_service_account = models.BooleanField(default=False)
+
     # How many of this user's uploads have been approved (drives auto-approve).
     approved_uploads_count = models.PositiveIntegerField(default=0)
 
