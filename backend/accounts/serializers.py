@@ -14,3 +14,12 @@ class UserSerializer(serializers.Serializer):
     full_name = serializers.CharField()
     role = serializers.CharField()
     is_gju_verified = serializers.BooleanField()
+    # Drives the "my major" default when browsing. Null until the student
+    # picks one, in which case the UI falls back to showing every major.
+    major = serializers.SerializerMethodField()
+
+    def get_major(self, obj):
+        profile = getattr(obj, "student_profile", None)
+        if profile is None or profile.major is None:
+            return None
+        return {"slug": profile.major.slug, "name": profile.major.name}
