@@ -8,6 +8,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { useTheme } from "../lib/theme";
 import Logo from "../components/Logo";
 import BrowsePage from "./BrowsePage";
 import CoursePage from "./CoursePage";
@@ -24,12 +25,16 @@ import SubjectPage from "./SubjectPage";
  */
 export default function HomePage() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg text-slate-900 hover:text-slate-600">
+          <Link
+            to="/"
+            className="text-lg text-slate-900 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300"
+          >
             <Logo />
           </Link>
           <div className="flex items-center gap-3 text-sm">
@@ -38,17 +43,27 @@ export default function HomePage() {
             {user?.can_moderate && (
               <Link
                 to="/moderation"
-                className="text-slate-600 hover:text-slate-900 font-medium"
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 font-medium"
               >
                 Review queue
               </Link>
             )}
-            <Link to="/profile" className="text-slate-600 hover:text-slate-900">
+            <Link
+              to="/profile"
+              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            >
               {user?.email}
             </Link>
             <button
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+            <button
               onClick={() => logout()}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
               Sign out
             </button>

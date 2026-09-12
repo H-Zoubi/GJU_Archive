@@ -79,8 +79,8 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-baseline justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Review queue</h1>
-          <p className="text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Review queue</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
             {queue === null
               ? "Loading…"
               : queue.length === 0
@@ -92,7 +92,7 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
           <button
             onClick={approveAll}
             disabled={busy}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-40"
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-2 text-sm text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300 disabled:opacity-40"
           >
             Approve all {queue.length}
           </button>
@@ -100,7 +100,7 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-4 rounded-lg bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>
       )}
 
       {!!queue?.length && (
@@ -108,15 +108,15 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
           {queue.map((resource) => (
             <li
               key={resource.id}
-              className="rounded-xl border border-slate-200 bg-white p-4"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
             >
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{resource.title}</p>
-                  <p className="mt-0.5 text-sm text-slate-500">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{resource.title}</p>
+                  <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
                     <button
                       onClick={() => onOpenCourse(resource.course_code)}
-                      className="underline hover:text-slate-900"
+                      className="underline hover:text-slate-900 dark:hover:text-slate-100"
                     >
                       {resource.course_code}
                     </button>{" "}
@@ -128,11 +128,11 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
                       mislabelled, so it is shown rather than hidden behind the
                       title the uploader typed. */}
                   {resource.original_filename && (
-                    <p className="mt-0.5 font-mono text-xs text-slate-400 truncate">
+                    <p className="mt-0.5 font-mono text-xs text-slate-400 dark:text-slate-500 truncate">
                       {resource.original_filename}
                     </p>
                   )}
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                     {resource.uploader_email ?? "system import"}
                     {" · "}
                     {resource.uploader_approved_count} approved before
@@ -143,7 +143,7 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
                   {resource.kind === "file" ? (
                     <button
                       onClick={() => open(resource)}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       Preview
                     </button>
@@ -152,14 +152,14 @@ export default function ModerationPage({ onOpenCourse }: { onOpenCourse: (code: 
                       href={resource.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       Open link
                     </a>
                   )}
                   <button
                     onClick={() => decide(resource, "reject")}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-red-50 hover:text-red-700"
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 dark:hover:text-red-400"
                   >
                     Reject
                   </button>

@@ -49,37 +49,37 @@ export default function SubjectPage({
     <div className="max-w-5xl mx-auto px-4 py-8">
       <button
         onClick={onBack}
-        className="text-sm text-slate-500 hover:text-slate-900 mb-4"
+        className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 mb-4"
       >
         ← All subjects
       </button>
 
-      <h1 className="text-2xl font-bold text-slate-900">{name || " "}</h1>
-      <p className="text-slate-500 mt-1 mb-6">
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{name || " "}</h1>
+      <p className="text-slate-500 dark:text-slate-400 mt-1 mb-6">
         {count} course{count === 1 ? "" : "s"}
         {major ? " in the selected major" : ""}
       </p>
 
       {loading ? (
-        <div className="py-12 text-center text-slate-400">Loading…</div>
+        <div className="py-12 text-center text-slate-400 dark:text-slate-500">Loading…</div>
       ) : courses.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 py-12 text-center text-slate-500">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 py-12 text-center text-slate-500 dark:text-slate-400">
           No courses here for that major.
         </div>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           {courses.map((course) => (
             <li key={course.id}>
               <button
                 onClick={() => onOpenCourse(course.code)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-baseline gap-3"
+                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-baseline gap-3"
               >
-                <span className="font-mono text-slate-900 w-24 shrink-0">
+                <span className="font-mono text-slate-900 dark:text-slate-100 w-24 shrink-0">
                   {course.display_code}
                 </span>
-                <span className="text-slate-700 flex-1">{course.name}</span>
+                <span className="text-slate-700 dark:text-slate-300 flex-1">{course.name}</span>
                 {course.credit_hours != null && (
-                  <span className="text-xs text-slate-400 shrink-0">
+                  <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
                     {course.credit_hours} cr
                   </span>
                 )}
@@ -94,17 +94,17 @@ export default function SubjectPage({
           <button
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
+            className="rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
             Previous
           </button>
-          <span className="text-slate-500">
+          <span className="text-slate-500 dark:text-slate-400">
             Page {page} of {pages}
           </span>
           <button
             disabled={page >= pages}
             onClick={() => setPage((p) => p + 1)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 disabled:opacity-40"
+            className="rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 disabled:opacity-40"
           >
             Next
           </button>

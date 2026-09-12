@@ -35,25 +35,25 @@ const TYPES = [
  * list wants to know at a glance which rows are slide decks.
  */
 const FORMATS: Record<string, { label: string; className: string }> = {
-  pdf: { label: "PDF", className: "bg-red-100 text-red-700" },
-  ppt: { label: "PPT", className: "bg-orange-100 text-orange-700" },
-  pptx: { label: "PPT", className: "bg-orange-100 text-orange-700" },
-  doc: { label: "DOC", className: "bg-blue-100 text-blue-700" },
-  docx: { label: "DOC", className: "bg-blue-100 text-blue-700" },
-  xls: { label: "XLS", className: "bg-emerald-100 text-emerald-700" },
-  xlsx: { label: "XLS", className: "bg-emerald-100 text-emerald-700" },
-  zip: { label: "ZIP", className: "bg-slate-200 text-slate-600" },
-  png: { label: "IMG", className: "bg-purple-100 text-purple-700" },
-  jpg: { label: "IMG", className: "bg-purple-100 text-purple-700" },
-  jpeg: { label: "IMG", className: "bg-purple-100 text-purple-700" },
-  gif: { label: "IMG", className: "bg-purple-100 text-purple-700" },
-  webp: { label: "IMG", className: "bg-purple-100 text-purple-700" },
-  txt: { label: "TXT", className: "bg-slate-100 text-slate-600" },
-  md: { label: "TXT", className: "bg-slate-100 text-slate-600" },
+  pdf: { label: "PDF", className: "bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400" },
+  ppt: { label: "PPT", className: "bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400" },
+  pptx: { label: "PPT", className: "bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400" },
+  doc: { label: "DOC", className: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400" },
+  docx: { label: "DOC", className: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400" },
+  xls: { label: "XLS", className: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400" },
+  xlsx: { label: "XLS", className: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400" },
+  zip: { label: "ZIP", className: "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300" },
+  png: { label: "IMG", className: "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400" },
+  jpg: { label: "IMG", className: "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400" },
+  jpeg: { label: "IMG", className: "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400" },
+  gif: { label: "IMG", className: "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400" },
+  webp: { label: "IMG", className: "bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400" },
+  txt: { label: "TXT", className: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
+  md: { label: "TXT", className: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
 };
 
-const LINK_FORMAT = { label: "LINK", className: "bg-sky-100 text-sky-700" };
-const UNKNOWN_FORMAT = { label: "FILE", className: "bg-slate-100 text-slate-500" };
+const LINK_FORMAT = { label: "LINK", className: "bg-sky-100 dark:bg-sky-950/50 text-sky-700 dark:text-sky-400" };
+const UNKNOWN_FORMAT = { label: "FILE", className: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" };
 
 function FormatBadge({ resource }: { resource: Resource }) {
   const extension = resource.original_filename.split(".").pop()?.toLowerCase() ?? "";
@@ -119,13 +119,13 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
   return (
     <section className="mt-8">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-slate-500">
+        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400">
           Files {resources ? `(${resources.length})` : ""}
         </h2>
         {user && (
           <button
             onClick={() => setShowUpload((open) => !open)}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 px-3 py-1.5 text-sm text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300"
           >
             {showUpload ? "Cancel" : "Upload a file"}
           </button>
@@ -144,26 +144,26 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
       )}
 
       {notice && (
-        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-400">
           {notice}
         </p>
       )}
 
       {resources === null ? (
-        <p className="text-slate-400">Loading…</p>
+        <p className="text-slate-400 dark:text-slate-500">Loading…</p>
       ) : resources.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
           Nothing here yet.{" "}
           {user ? "Be the first to upload." : "Sign in with your GJU account to contribute."}
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           {resources.map((resource) => (
             <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
               <FormatBadge resource={resource} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-slate-800">{resource.title}</p>
-                <p className="text-xs text-slate-400">
+                <p className="truncate text-slate-800 dark:text-slate-200">{resource.title}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   {[
                     resource.type_label,
                     resource.term_label,
@@ -180,7 +180,7 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
                   href={resource.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="shrink-0 text-sm text-slate-600 underline hover:text-slate-900"
+                  className="shrink-0 text-sm text-slate-600 dark:text-slate-400 underline hover:text-slate-900 dark:hover:text-slate-100"
                 >
                   Open link
                 </a>
@@ -188,13 +188,13 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => setViewing(resource)}
-                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+                    className="rounded-lg bg-slate-900 dark:bg-slate-100 px-3 py-1.5 text-sm text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-300"
                   >
                     View
                   </button>
                   <button
                     onClick={() => download(resource)}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     Download
                   </button>
@@ -265,7 +265,7 @@ function UploadForm({
   return (
     <form
       onSubmit={submit}
-      className="mb-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+      className="mb-4 space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4"
     >
       <input
         type="file"
@@ -274,20 +274,20 @@ function UploadForm({
           setFile(picked);
           if (picked && !title) setTitle(picked.name.replace(/\.[^.]+$/, ""));
         }}
-        className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm"
+        className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 dark:file:bg-slate-700 file:text-slate-900 dark:file:text-slate-100 file:px-3 file:py-1.5 file:text-sm"
       />
       <div className="flex gap-3">
         <input
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Title"
-          className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
         />
         <select
           value={type}
           onChange={(event) => setType(event.target.value)}
-          className={`rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm ${
-            type ? "text-slate-900" : "text-slate-400"
+          className={`rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm ${
+            type ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"
           }`}
         >
           <option value="" disabled>
@@ -303,10 +303,10 @@ function UploadForm({
 
       {busy && (
         <div>
-          <p className="text-xs text-slate-500">{STAGE_LABEL[stage]}</p>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <p className="text-xs text-slate-500 dark:text-slate-400">{STAGE_LABEL[stage]}</p>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
             <div
-              className="h-full bg-slate-900 transition-all"
+              className="h-full bg-slate-900 dark:bg-slate-100 transition-all"
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
@@ -318,12 +318,12 @@ function UploadForm({
         <button
           type="submit"
           disabled={!file || !type || busy}
-          className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm text-white disabled:opacity-40"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 px-4 py-1.5 text-sm text-white dark:text-slate-900 disabled:opacity-40"
         >
           Upload
         </button>
         {file && !type && (
-          <span className="text-xs text-slate-500">Pick a type first.</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Pick a type first.</span>
         )}
       </div>
     </form>

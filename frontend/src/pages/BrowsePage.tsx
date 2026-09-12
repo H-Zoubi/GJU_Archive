@@ -114,7 +114,9 @@ export default function BrowsePage({
 
   if (loading) {
     return (
-      <div className="py-20 text-center text-slate-400">Loading catalog…</div>
+      <div className="py-20 text-center text-slate-400 dark:text-slate-500">
+        Loading catalog…
+      </div>
     );
   }
 
@@ -126,16 +128,16 @@ export default function BrowsePage({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search a course — CS223, or “data structures”"
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10"
+          className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-4 py-3 text-lg outline-none focus:border-slate-400 dark:focus:border-slate-500 focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-slate-100/10"
         />
       </div>
 
       <div className="flex items-center gap-2 mb-8 text-sm">
-        <span className="text-slate-500">Major:</span>
+        <span className="text-slate-500 dark:text-slate-400">Major:</span>
         <select
           value={major ?? ""}
           onChange={(e) => setMajor(e.target.value || null)}
-          className="rounded-lg border border-slate-300 px-2 py-1.5"
+          className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-2 py-1.5"
         >
           <option value="">All majors</option>
           {majors.map((m) => (
@@ -145,12 +147,12 @@ export default function BrowsePage({
           ))}
         </select>
         {ownMajor && major === ownMajor && (
-          <span className="text-slate-400">· your major</span>
+          <span className="text-slate-400 dark:text-slate-500">· your major</span>
         )}
 
         {/* Only meaningful with a major: the study plan is per degree. */}
         {major && (
-          <div className="ml-auto flex rounded-lg border border-slate-300 overflow-hidden">
+          <div className="ml-auto flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden">
             {(
               [
                 [null, "All"],
@@ -163,8 +165,8 @@ export default function BrowsePage({
                 onClick={() => setRequirement(value)}
                 className={`px-3 py-1.5 ${
                   requirement === value
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-600 hover:bg-slate-50"
+                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
+                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 {label}
@@ -176,32 +178,32 @@ export default function BrowsePage({
 
       {hits !== null ? (
         <section>
-          <h2 className="text-sm font-medium text-slate-500 mb-3">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
             {searching ? "Searching…" : `${hits.length} result(s)`}
           </h2>
-          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             {hits.map((course) => (
               <li key={course.id}>
                 <button
                   onClick={() => onOpenCourse(course.code)}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50"
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
-                  <span className="font-mono text-slate-900">
+                  <span className="font-mono text-slate-900 dark:text-slate-100">
                     {course.display_code}
                   </span>
-                  <span className="text-slate-600"> — {course.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400"> — {course.name}</span>
                   <RequirementBadge course={course} />
                 </button>
               </li>
             ))}
             {!searching && hits.length === 0 && hiddenByFilter === 0 && (
-              <li className="px-4 py-6 text-center text-slate-400">
+              <li className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                 Nothing matched “{query}”.
               </li>
             )}
             {!searching && hits.length === 0 && hiddenByFilter > 0 && (
               <li className="px-4 py-6 text-center">
-                <p className="text-slate-700">
+                <p className="text-slate-700 dark:text-slate-300">
                   No match in this major — but{" "}
                   {hiddenByFilter === 1
                     ? "1 course elsewhere matches"
@@ -210,7 +212,7 @@ export default function BrowsePage({
                 </p>
                 <button
                   onClick={() => setMajor(null)}
-                  className="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+                  className="mt-3 rounded-lg bg-slate-900 dark:bg-slate-100 px-3 py-1.5 text-sm text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-300"
                 >
                   Clear the major filter
                 </button>
@@ -220,33 +222,33 @@ export default function BrowsePage({
         </section>
       ) : planCourses !== null ? (
         <section>
-          <h2 className="text-sm font-medium text-slate-500 mb-3">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
             {planTotal}{" "}
             {requirement === "compulsory" ? "required" : "elective"} course
             {planTotal === 1 ? "" : "s"} in this study plan
           </h2>
-          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             {planCourses.map((course) => (
               <li key={course.id}>
                 <button
                   onClick={() => onOpenCourse(course.code)}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50"
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
-                  <span className="font-mono text-slate-900">
+                  <span className="font-mono text-slate-900 dark:text-slate-100">
                     {course.display_code}
                   </span>
-                  <span className="text-slate-600"> — {course.name}</span>
+                  <span className="text-slate-600 dark:text-slate-400"> — {course.name}</span>
                   <RequirementBadge course={course} showCategory />
                 </button>
               </li>
             ))}
             {planCourses.length === 0 && (
-              <li className="px-4 py-6 text-center text-slate-400">
+              <li className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                 No study plan has been imported for this major yet.
               </li>
             )}
             {planCourses.length < planTotal && (
-              <li className="px-4 py-3 text-center text-xs text-slate-400">
+              <li className="px-4 py-3 text-center text-xs text-slate-400 dark:text-slate-500">
                 Showing the first {planCourses.length} of {planTotal}.
               </li>
             )}
@@ -285,8 +287,8 @@ function RequirementBadge({
     <span
       className={`ml-2 rounded px-1.5 py-0.5 text-[11px] align-middle ${
         required
-          ? "bg-slate-900 text-white"
-          : "bg-slate-100 text-slate-600 border border-slate-200"
+          ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900"
+          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
       }`}
     >
       {required ? "Required" : "Elective"}
@@ -311,24 +313,24 @@ function SubjectGrid({
   if (subjects.length === 0) return null;
   return (
     <section className="mb-10">
-      <h2 className="text-sm font-medium text-slate-500 mb-3">{title}</h2>
+      <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">{title}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {subjects.map((subject) => (
           <button
             key={subject.slug}
             onClick={() => onOpen(subject.slug, subject.name)}
-            className={`text-left rounded-xl border p-4 transition hover:border-slate-400 hover:shadow-sm ${
+            className={`text-left rounded-xl border p-4 transition hover:border-slate-400 dark:hover:border-slate-600 hover:shadow-sm ${
               muted
-                ? "border-slate-200 bg-slate-50"
-                : "border-slate-200 bg-white"
+                ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50"
+                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             }`}
           >
-            <div className="font-medium text-slate-900">{subject.name}</div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="font-medium text-slate-900 dark:text-slate-100">{subject.name}</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {subject.course_count} course
               {subject.course_count === 1 ? "" : "s"}
             </div>
-            <div className="mt-2 font-mono text-[11px] text-slate-400">
+            <div className="mt-2 font-mono text-[11px] text-slate-400 dark:text-slate-500">
               {subject.prefixes.join(" · ")}
             </div>
           </button>

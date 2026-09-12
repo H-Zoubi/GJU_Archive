@@ -56,26 +56,26 @@ export default function FileViewer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/70 p-4"
       onClick={onClose}
     >
       <div
-        className="flex h-full max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+        className="flex h-full max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white dark:bg-slate-900 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
-          <p className="min-w-0 truncate font-medium text-slate-800">{resource.title}</p>
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+          <p className="min-w-0 truncate font-medium text-slate-800 dark:text-slate-200">{resource.title}</p>
           <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={() => onDownload(resource)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Download
             </button>
             <button
               onClick={onClose}
               aria-label="Close preview"
-              className="rounded-lg px-2 py-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="rounded-lg px-2 py-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300"
             >
               ✕
             </button>
@@ -84,9 +84,9 @@ export default function FileViewer({
 
         <div className="min-h-0 flex-1">
           {error ? (
-            <p className="p-8 text-center text-sm text-slate-500">{error}</p>
+            <p className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{error}</p>
           ) : !url ? (
-            <p className="p-8 text-center text-sm text-slate-400">Opening…</p>
+            <p className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Opening…</p>
           ) : (
             <FileBody resource={resource} url={url} />
           )}
@@ -100,7 +100,7 @@ function FileBody({ resource, url }: { resource: Resource; url: string }) {
   if (resource.mime_type === "application/pdf") {
     return (
       <Suspense
-        fallback={<p className="p-8 text-center text-sm text-slate-400">Loading preview…</p>}
+        fallback={<p className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Loading preview…</p>}
       >
         <PdfViewer url={url} />
       </Suspense>
@@ -109,7 +109,7 @@ function FileBody({ resource, url }: { resource: Resource; url: string }) {
 
   if (IMAGE_MIME_TYPES.has(resource.mime_type)) {
     return (
-      <div className="flex h-full items-center justify-center overflow-auto bg-slate-100 p-4">
+      <div className="flex h-full items-center justify-center overflow-auto bg-slate-100 dark:bg-slate-950 p-4">
         <img src={url} alt={resource.title} className="max-h-full max-w-full object-contain" />
       </div>
     );
@@ -121,10 +121,10 @@ function FileBody({ resource, url }: { resource: Resource; url: string }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1 p-8 text-center">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         There's no in-site preview for this file type yet.
       </p>
-      <p className="text-xs text-slate-400">Use Download above to open it.</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500">Use Download above to open it.</p>
     </div>
   );
 }
@@ -148,7 +148,7 @@ function TextBody({ url }: { url: string }) {
   }, [url]);
 
   return (
-    <pre className="h-full overflow-auto whitespace-pre-wrap break-words bg-slate-50 p-4 text-sm text-slate-800">
+    <pre className="h-full overflow-auto whitespace-pre-wrap break-words bg-slate-50 dark:bg-slate-950 p-4 text-sm text-slate-800 dark:text-slate-200">
       {text ?? "Loading…"}
     </pre>
   );

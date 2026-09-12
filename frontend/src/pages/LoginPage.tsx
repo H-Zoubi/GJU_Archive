@@ -24,21 +24,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl text-slate-900">
+          <h1 className="text-3xl text-slate-900 dark:text-slate-100">
             <Logo />
           </h1>
-          <p className="text-slate-500 mt-1">Sign in with your GJU account</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Sign in with your GJU account</p>
         </div>
 
         <form
           onSubmit={onSubmit}
-          className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4"
+          className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4"
         >
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+            >
               GJU email
             </label>
             <input
@@ -49,12 +52,15 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@gju.edu.jo"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-slate-100/10 focus:border-slate-400 dark:focus:border-slate-500"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+            >
               GJU password
             </label>
             <input
@@ -65,12 +71,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-slate-100/10 focus:border-slate-400 dark:focus:border-slate-500"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -78,12 +84,12 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-slate-900 text-white font-medium py-2.5 hover:bg-slate-800 disabled:opacity-60 transition"
+            className="w-full rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-medium py-2.5 hover:bg-slate-800 dark:hover:bg-slate-300 disabled:opacity-60 transition"
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>
 
-          <p className="text-xs text-slate-400 text-center pt-1">
+          <p className="text-xs text-slate-400 dark:text-slate-500 text-center pt-1">
             No sign-up needed — your GJU account signs you in.
           </p>
         </form>
