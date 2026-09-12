@@ -39,6 +39,13 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      # The browser uploads/downloads directly against this endpoint (see
+      # common/storage.py), from whatever origin the frontend is served on --
+      # a different port already counts as cross-origin, so without this the
+      # browser's CORS preflight for the presigned PUT is rejected. Extra
+      # origins (a LAN IP, a tunnel hostname) can be appended via env without
+      # touching this file, since they vary per contributor's machine.
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:5173,http://127.0.0.1:5173${MINIO_EXTRA_CORS_ORIGINS:+,${MINIO_EXTRA_CORS_ORIGINS}}"
     ports:
       - "9000:9000"   # S3 API
       - "9001:9001"   # web console
