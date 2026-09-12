@@ -7,8 +7,40 @@ from .models import (
     Instructor,
     Major,
     MeetingTime,
+    Subject,
+    SubjectPrefix,
     Term,
 )
+
+
+class SubjectPrefixInline(admin.TabularInline):
+    model = SubjectPrefix
+    extra = 0
+    filter_horizontal = ["majors"]
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    """The prefix -> subject grouping is editable here, no deploy needed."""
+
+    list_display = ["name", "is_university_wide", "sort_order", "prefix_list"]
+    list_filter = ["is_university_wide"]
+    list_editable = ["sort_order"]
+    search_fields = ["name"]
+    prepopulated_fields = {"slug": ("name",)}
+    inlines = [SubjectPrefixInline]
+
+    @admin.display(description="Prefixes")
+    def prefix_list(self, obj):
+        return ", ".join(p.prefix for p in obj.prefixes.all())
+
+
+@admin.register(SubjectPrefix)
+class SubjectPrefixAdmin(admin.ModelAdmin):
+    list_display = ["prefix", "subject"]
+    list_filter = ["subject"]
+    search_fields = ["prefix"]
+    filter_horizontal = ["majors"]
 
 
 @admin.register(Major)

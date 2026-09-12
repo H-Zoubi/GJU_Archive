@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.utils.text import slugify
 
@@ -7,6 +9,12 @@ from common.models import TimeStampedModel
 def normalize_code(raw: str) -> str:
     """'CS 116', 'cs-116' -> 'CS116' so lookups and dedup are consistent."""
     return "".join(ch for ch in (raw or "") if ch.isalnum()).upper()
+
+
+def code_prefix(code: str) -> str:
+    """'CS223' -> 'CS'. The letter part is what groups a course by subject."""
+    match = re.match(r"^([A-Z]+)", normalize_code(code))
+    return match.group(1) if match else ""
 
 
 class DegreeLevel(models.TextChoices):
@@ -40,6 +48,60 @@ class Major(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class Subject(TimeStampedModel):
+    """
+    A browsable grouping of courses, e.g. "Computer Science" or "German".
+
+    Subjects are derived from the course code prefix, which is already in the
+    data and needs no upkeep. Several prefixes can point at one subject because
+    GJU renumbered over the years and some fields use more than one: Mechanical
+    is ME + MECH + TME, German is GERL + GERS + GLS + GEBC + MADAF + DAF.
+
+    The prefix -> subject mapping lives in the database rather than in code, so
+    the grouping can be corrected from the admin without a deploy.
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=120, unique=True, blank=True)
+    # Service subjects (German, Sports, National Education) belong to no single
+    # major; they are shown under "University-wide" when browsing by major.
+    is_university_wide = models.BooleanField(
+        default=False,
+        help_text="Offered across majors rather than belonging to one.",
+    )
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)[:120]
+        super().save(*args, **kwargs)
+
+
+class SubjectPrefix(TimeStampedModel):
+    """One course-code prefix (CS, MECH, GERL) routed to a Subject."""
+
+    prefix = models.CharField(max_length=12, unique=True)
+    subject = models.ForeignKey(
+        Subject, on_delete=models.CASCADE, related_name="prefixes"
+    )
+    # Courses with this prefix are attached to these majors on import. Empty
+    # means the prefix serves no particular major.
+    majors = models.ManyToManyField("Major", related_name="prefixes", blank=True)
+
+    class Meta:
+        ordering = ["prefix"]
+        verbose_name_plural = "subject prefixes"
+
+    def __str__(self):
+        return f"{self.prefix} -> {self.subject}"
+
+
 class Instructor(TimeStampedModel):
     """A lecturer / faculty member. May exist without a login account."""
 
@@ -60,6 +122,16 @@ class Course(TimeStampedModel):
     display_code = models.CharField(max_length=20, blank=True, help_text="e.g. 'CS 116'")
     name = models.CharField(max_length=255)
     majors = models.ManyToManyField(Major, related_name="courses", blank=True)
+    # Letter part of the code ("CS" from "CS223"), stored so browsing by
+    # subject is an indexed lookup rather than a regex over every row.
+    code_prefix = models.CharField(max_length=12, blank=True, db_index=True)
+    subject = models.ForeignKey(
+        "Subject",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="courses",
+    )
     credit_hours = models.PositiveSmallIntegerField(null=True, blank=True)
     level = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="100/200/300 tier"
@@ -83,6 +155,7 @@ class Course(TimeStampedModel):
         self.code = normalize_code(self.code)
         if not self.display_code:
             self.display_code = self.code
+        self.code_prefix = code_prefix(self.code)
         if not self.slug:
             self.slug = slugify(f"{self.code}-{self.name}")[:255]
         super().save(*args, **kwargs)

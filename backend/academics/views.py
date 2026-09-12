@@ -2,7 +2,7 @@ from django.db.models import Count
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter
 
-from .models import Course, Instructor, Major, Term
+from .models import Course, Instructor, Major, Subject, Term
 from .serializers import (
     CourseDetailSerializer,
     CourseListSerializer,
@@ -11,6 +11,7 @@ from .serializers import (
     MajorSerializer,
     TermSerializer,
 )
+from .serializers_browse import SubjectSerializer
 
 # Catalog is public (read-only). The global IsAuthenticatedOrReadOnly default
 # already allows anonymous GETs, so no extra permission classes are needed.
@@ -30,6 +31,21 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
+    """Browse axis: subjects derived from the course code prefix."""
+
+    serializer_class = SubjectSerializer
+    lookup_field = "slug"
+    pagination_class = None  # 27 subjects; the UI wants them in one list
+
+    def get_queryset(self):
+        return (
+            Subject.objects.annotate(course_count=Count("courses"))
+            .prefetch_related("prefixes")
+            .order_by("sort_order", "name")
+        )
+
+
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "code"
     filter_backends = [SearchFilter]
@@ -39,10 +55,13 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         return CourseListSerializer if self.action == "list" else CourseDetailSerializer
 
     def get_queryset(self):
-        qs = Course.objects.all().order_by("code")
+        qs = Course.objects.select_related("subject").order_by("code")
         major = self.request.query_params.get("major")
         if major:
             qs = qs.filter(majors__slug=major)
+        subject = self.request.query_params.get("subject")
+        if subject:
+            qs = qs.filter(subject__slug=subject)
         if self.action == "retrieve":
             qs = qs.prefetch_related(
                 "majors", "prerequisites", "offerings__term", "offerings__instructors"
