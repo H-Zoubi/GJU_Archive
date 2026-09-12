@@ -153,6 +153,8 @@ class MeetingTime(TimeStampedModel):
         TUE = "tue", "Tuesday"
         WED = "wed", "Wednesday"
         THU = "thu", "Thursday"
+        FRI = "fri", "Friday"
+        SAT = "sat", "Saturday"
 
     offering = models.ForeignKey(
         CourseOffering, on_delete=models.CASCADE, related_name="meeting_times"

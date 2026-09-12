@@ -28,5 +28,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Raw MyGJU page dumps (large; regenerate by saving the page — see backend/data/README.md)
+/backend/data/*.txt
+
 # Misc
 *.log
