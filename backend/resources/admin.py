@@ -1,6 +1,6 @@
 from django.contrib import admin
-from django.utils import timezone
 
+from . import moderation
 from .models import Download, Resource, Tag, Vote
 
 
@@ -21,19 +21,24 @@ class ResourceAdmin(admin.ModelAdmin):
     ]
     actions = ["approve", "reject", "remove"]
 
+    # These delegate to resources/moderation.py rather than calling
+    # queryset.update(), which skipped crediting the uploader and wrote no
+    # audit entry. One implementation, shared with the review dashboard.
+
     @admin.action(description="Approve selected resources")
     def approve(self, request, queryset):
-        queryset.update(status=Resource.Status.APPROVED, approved_at=timezone.now(), approved_by=request.user)
+        for resource in queryset:
+            moderation.approve(resource, request.user)
 
     @admin.action(description="Reject selected resources")
     def reject(self, request, queryset):
-        queryset.update(status=Resource.Status.REJECTED)
+        for resource in queryset:
+            moderation.reject(resource, request.user)
 
     @admin.action(description="Remove selected resources (soft delete)")
     def remove(self, request, queryset):
         for resource in queryset:
-            resource.status = Resource.Status.REMOVED
-            resource.soft_delete()
+            moderation.remove(resource, request.user)
 
 
 @admin.register(Tag)

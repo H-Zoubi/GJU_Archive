@@ -73,7 +73,28 @@ PLANS = {
     "TRANS": ("Translation 2023/24",
               "/sites/default/files/Department of Languages/programs/"
               "translation_german-english-arabic_study_plan_2023-2024.pdf"),
+    "CS": ("Computer Science 2023/24",
+           "/sites/default/files/Computer Science/programs/"
+           "study_plan_all_tracks_2023-2024_updated.pdf"),
+    "IA": ("International Accounting regular",
+           "/sites/default/files/International Accounting/programs/"
+           "8_international_accounting_reqular.pdf"),
+    "LS": ("Logistics Sciences regular",
+           "/sites/default/files/Logistics Sciences/programs/"
+           "6_logistics_regular.pdf"),
+    "MGTS": ("Management Sciences regular",
+             "/sites/default/files/Management Sciences/programs/"
+             "2_management_sciences_regular.pdf"),
+    "BIDA": ("Business Intelligence and Data Analytics regular",
+             "/sites/default/files/Management Sciences/programs/"
+             "4_bida_regular.pdf"),
+    "NUR": ("Nursing v16",
+            "/sites/default/files/Nursing Sciences/programs/"
+            "nursing_study_plan-v16.0-_21january_2026.pdf"),
 }
+
+# GDMI (Game Design and Media Informatics) is a track inside the Computer
+# Science plan, not a plan of its own — there is nothing to fetch for it.
 
 
 def encode(path):

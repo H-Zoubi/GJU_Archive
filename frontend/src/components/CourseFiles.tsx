@@ -230,8 +230,8 @@ function UploadForm({
       );
       onDone(
         result.skipped
-          ? "That file was already in the archive, so nothing was uploaded."
-          : result.resource.status === "approved"
+          ? result.reason ?? "Already in the archive — nothing was added."
+          : result.resource?.status === "approved"
             ? "Uploaded and published."
             : "Uploaded. A moderator will review it shortly.",
       );

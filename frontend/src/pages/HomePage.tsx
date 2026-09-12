@@ -1,5 +1,6 @@
 import {
   Link,
+  Navigate,
   Route,
   Routes,
   useNavigate,
@@ -9,6 +10,7 @@ import {
 import { useAuth } from "../lib/auth";
 import BrowsePage from "./BrowsePage";
 import CoursePage from "./CoursePage";
+import ModerationPage from "./ModerationPage";
 import SubjectPage from "./SubjectPage";
 
 /**
@@ -29,6 +31,16 @@ export default function HomePage() {
             GJU Archive
           </Link>
           <div className="flex items-center gap-3 text-sm">
+            {/* Convenience only: the moderation API checks permission itself,
+                so hiding this link is not what keeps students out. */}
+            {user?.can_moderate && (
+              <Link
+                to="/moderation"
+                className="text-slate-600 hover:text-slate-900 font-medium"
+              >
+                Review queue
+              </Link>
+            )}
             <span className="text-slate-500">{user?.email}</span>
             <button
               onClick={() => logout()}
@@ -44,6 +56,7 @@ export default function HomePage() {
         <Route path="/" element={<BrowseRoute />} />
         <Route path="/subjects/:slug" element={<SubjectRoute />} />
         <Route path="/courses/:code" element={<CourseRoute />} />
+        <Route path="/moderation" element={<ModerationRoute />} />
         <Route path="*" element={<BrowseRoute />} />
       </Routes>
     </div>
@@ -103,6 +116,18 @@ function SubjectRoute() {
       onBack={() => navigate(-1)}
     />
   );
+}
+
+function ModerationRoute() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // A student who types the URL is sent home rather than shown a page that
+  // can only fail. The API refuses them regardless -- this is about not
+  // presenting a dead end, not about access.
+  if (!user?.can_moderate) return <Navigate to="/" replace />;
+
+  return <ModerationPage onOpenCourse={(code) => navigate(`/courses/${code}`)} />;
 }
 
 function CourseRoute() {

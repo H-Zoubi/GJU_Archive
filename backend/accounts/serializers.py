@@ -14,6 +14,8 @@ class UserSerializer(serializers.Serializer):
     full_name = serializers.CharField()
     role = serializers.CharField()
     is_gju_verified = serializers.BooleanField()
+    # Drives whether the review dashboard is offered at all.
+    can_moderate = serializers.BooleanField(read_only=True)
     # Drives the "my major" default when browsing. Null until the student
     # picks one, in which case the UI falls back to showing every major.
     major = serializers.SerializerMethodField()

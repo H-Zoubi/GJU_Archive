@@ -115,7 +115,14 @@ class ResourceExistsView(APIView):
             )
         matches = (
             Resource.objects.alive()
-            .filter(sha256=sha256, kind=Resource.Kind.FILE)
+            .filter(
+                sha256=sha256,
+                kind=Resource.Kind.FILE,
+                # Only finished uploads count. Matching an abandoned row would
+                # tell the client "we already have it" and leave the student
+                # permanently unable to retry their own failed upload.
+                upload_completed_at__isnull=False,
+            )
             .exclude(status=Resource.Status.REJECTED)
             .select_related("course", "term", "instructor", "uploader")
         )
@@ -149,16 +156,26 @@ class UploadStartView(APIView):
         file_type = filetypes.lookup(data["filename"])
         sha256 = data["sha256"].lower()
 
-        existing = (
-            Resource.objects.alive()
-            .filter(course=data["course"], sha256=sha256, kind=Resource.Kind.FILE)
-            .exclude(status=Resource.Status.REJECTED)
-            .first()
-        )
+        # Every status, soft-deleted included: the course+sha256 uniqueness
+        # constraint does not care why a row exists, so narrowing this lookup
+        # would let a second row be built for a file that already has one and
+        # fail with an IntegrityError at save time.
+        existing = Resource.objects.filter(
+            course=data["course"], sha256=sha256, kind=Resource.Kind.FILE
+        ).first()
+
         if existing is not None and existing.upload_completed_at is not None:
+            if existing.status == Resource.Status.REJECTED:
+                refusal = "A moderator has already reviewed this file and turned it down."
+            elif existing.is_deleted or existing.status == Resource.Status.REMOVED:
+                refusal = "This file was taken down and cannot be re-uploaded."
+            else:
+                # Approved, or pending someone else's review: either way it is
+                # accounted for and a second copy would just be noise.
+                refusal = "This file is already in the archive for this course."
             return Response(
                 {
-                    "detail": "This file is already in the archive for this course.",
+                    "detail": refusal,
                     "code": "duplicate",
                     "resource": ResourceSerializer(existing).data,
                 },
@@ -185,6 +202,11 @@ class UploadStartView(APIView):
         resource.source = Resource.Source.UPLOAD
         resource.status = Resource.Status.PENDING
         resource.upload_completed_at = None
+        # Only ever reached for a row whose file never arrived, so this is
+        # reviving an abandoned attempt rather than resurrecting a takedown --
+        # completed rows were refused above.
+        resource.is_deleted = False
+        resource.deleted_at = None
         resource.save()
 
         return Response(

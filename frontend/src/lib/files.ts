@@ -36,6 +36,8 @@ export interface UploadMeta {
 /** A denial the API reports with a machine-readable reason (see entitlements.py). */
 export class GateError extends Error {
   code: string;
+  /** Set on a "duplicate" refusal: the resource we already hold. */
+  resource?: Resource;
   constructor(code: string, message: string) {
     super(message);
     this.code = code;
@@ -65,8 +67,14 @@ async function jsonPost<T>(path: string, body?: unknown): Promise<T> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const { detail, code } = data as { detail?: string; code?: string };
-    throw new GateError(code ?? "error", detail ?? "Something went wrong.");
+    const { detail, code, resource } = data as {
+      detail?: string;
+      code?: string;
+      resource?: Resource;
+    };
+    const error = new GateError(code ?? "error", detail ?? "Something went wrong.");
+    error.resource = resource;
+    throw error;
   }
   return data as T;
 }
@@ -131,9 +139,12 @@ function putToBucket(
 export type UploadStage = "hashing" | "checking" | "uploading" | "finishing";
 
 export interface UploadResult {
-  resource: Resource;
+  /** Null when the duplicate we already hold is not visible to this student. */
+  resource: Resource | null;
   /** True when the archive already had this file and nothing was uploaded. */
   skipped: boolean;
+  /** Why it was skipped, when it was. */
+  reason?: string;
 }
 
 interface StartResponse {
@@ -161,15 +172,31 @@ export async function uploadFile(
   onStage?.("checking", 0);
   const duplicate = await checkExists(sha256, meta.course);
   if (duplicate.in_this_course) {
-    return { resource: duplicate.resources[0], skipped: true };
+    return {
+      resource: duplicate.resources[0] ?? null,
+      skipped: true,
+      reason: "This file is already in the archive for this course.",
+    };
   }
 
-  const start = await jsonPost<StartResponse>("/api/uploads/", {
-    ...meta,
-    filename: file.name,
-    size_bytes: file.size,
-    sha256,
-  });
+  let start: StartResponse;
+  try {
+    start = await jsonPost<StartResponse>("/api/uploads/", {
+      ...meta,
+      filename: file.name,
+      size_bytes: file.size,
+      sha256,
+    });
+  } catch (error) {
+    // The client-side check above can miss -- another student may have
+    // uploaded the same file a second ago, or this one was previously
+    // rejected. The server refuses either way, and that is not an error the
+    // uploader needs to see as a failure.
+    if (error instanceof GateError && error.code === "duplicate") {
+      return { resource: error.resource ?? null, skipped: true, reason: error.message };
+    }
+    throw error;
+  }
 
   onStage?.("uploading", 0);
   await putToBucket(start.upload_url, file, start.headers, (p) => onStage?.("uploading", p));
@@ -219,4 +246,52 @@ export async function getDownloadUrl(
     throw new GateError(code ?? "error", detail ?? "This file is not available.");
   }
   return (data as { url: string }).url;
+}
+
+// --- Moderation ------------------------------------------------------------
+// Only reachable by users whose `can_moderate` is true; the API enforces it
+// independently, so hiding the UI is convenience, not security.
+
+export interface PendingResource extends Resource {
+  uploader_email: string | null;
+  uploader_approved_count: number;
+  upload_completed_at: string | null;
+}
+
+export type ModerationAction = "approve" | "reject" | "remove";
+
+export async function moderationQueue(): Promise<{
+  count: number;
+  results: PendingResource[];
+}> {
+  const res = await fetch("/api/moderation/queue/", { credentials: "include" });
+  if (!res.ok) throw new Error("Could not load the review queue.");
+  return (await res.json()) as { count: number; results: PendingResource[] };
+}
+
+export function moderate(
+  id: number,
+  action: ModerationAction,
+  reason?: string,
+): Promise<PendingResource> {
+  return jsonPost<PendingResource>(`/api/moderation/${id}/${action}/`, { reason });
+}
+
+export function moderateBulk(
+  ids: number[],
+  action: ModerationAction,
+): Promise<{ applied: number[] }> {
+  return jsonPost<{ applied: number[] }>("/api/moderation/bulk/", { ids, action });
+}
+
+/**
+ * A preview URL for a file that is not published yet.
+ *
+ * Deliberately not the student download endpoint, which refuses anything
+ * unapproved -- exactly what a reviewer needs to see.
+ */
+export async function previewUrl(id: number): Promise<string> {
+  const res = await fetch(`/api/moderation/${id}/preview/`, { credentials: "include" });
+  if (!res.ok) throw new Error("Could not open this file.");
+  return ((await res.json()) as { url: string }).url;
 }

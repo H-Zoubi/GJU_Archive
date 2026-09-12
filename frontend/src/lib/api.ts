@@ -7,6 +7,8 @@ export interface User {
   full_name: string;
   role: string;
   is_gju_verified: boolean;
+  /** Whether to offer the review dashboard. The API enforces this too. */
+  can_moderate: boolean;
   /** Set once the student picks a major; drives the default browse filter. */
   major: { slug: string; name: string } | null;
 }

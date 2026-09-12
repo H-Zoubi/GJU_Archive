@@ -66,6 +66,23 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_trusted_uploader(self):
         return self.approved_uploads_count >= 5
 
+    @property
+    def can_moderate(self) -> bool:
+        """
+        May approve, reject and remove other people's uploads.
+
+        Three ways in, because `role` is a convenience label and not the real
+        gate: a Django superuser, anyone labelled moderator or above, or -- the
+        general case -- anyone granted `resources.change_resource` through a
+        Group. The Group route is what lets moderators be appointed from the
+        admin without editing code.
+        """
+        return (
+            self.is_superuser
+            or self.role in {Role.MODERATOR, Role.ADMIN, Role.SUPERADMIN}
+            or self.has_perm("resources.change_resource")
+        )
+
 
 class StudentProfile(TimeStampedModel):
     """Optional per-student academic info."""

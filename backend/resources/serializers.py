@@ -135,3 +135,29 @@ class LinkCreateSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("A link is required.")
         return value
+
+
+class ModerationResourceSerializer(ResourceSerializer):
+    """
+    The reviewer's view, which is allowed to show more than the public one.
+
+    Deciding on an upload needs the things a student is not shown: who
+    submitted it (spam is a pattern across a person's uploads, not a property
+    of one file), and the filename they chose, which is often the clearest
+    signal that something is mislabelled.
+    """
+
+    uploader_email = serializers.EmailField(
+        source="uploader.email", read_only=True, default=None
+    )
+    uploader_approved_count = serializers.IntegerField(
+        source="uploader.approved_uploads_count", read_only=True, default=0
+    )
+
+    class Meta(ResourceSerializer.Meta):
+        fields = ResourceSerializer.Meta.fields + [
+            "uploader_email",
+            "uploader_approved_count",
+            "upload_completed_at",
+        ]
+        read_only_fields = fields
