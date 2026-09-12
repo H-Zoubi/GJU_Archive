@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import gju_verifier
 from .serializers import LoginSerializer, UserSerializer
 
 User = get_user_model()
@@ -21,24 +22,14 @@ def _is_gju_email(email: str) -> bool:
     return domain in [d.lower() for d in settings.GJU_EMAIL_DOMAINS]
 
 
-def verify_with_gju(email: str, password: str) -> bool:
-    """
-    Placeholder for the real GJU credential check (Moodle login/token.php).
-
-    For now we do NOT contact GJU: first-time credentials are trusted and the
-    account is created on the spot. Replace this with the real verifier before
-    launch so only genuine GJU members can create an account.
-    """
-    return True
-
-
 class LoginView(APIView):
     """
     Sign in only — there is no separate sign-up.
 
     - Known email: authenticate against the stored password hash (Django auth).
-    - Unknown email: (future) verify against GJU, then create the account on the
-      spot and log in. The first password entered becomes the stored hash.
+    - Unknown GJU email: verify the credentials against MyGJU, then create the
+      account on the spot and log in. The first password entered becomes the
+      stored hash.
     """
 
     permission_classes = [AllowAny]
@@ -49,21 +40,39 @@ class LoginView(APIView):
         email = serializer.validated_data["email"].strip().lower()
         password = serializer.validated_data["password"]
 
-        if not _is_gju_email(email):
-            return Response(
-                {"detail": "Please use your GJU email address."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         user = User.objects.filter(email=email).first()
 
         if user is None:
-            # First time we see this email: verify with GJU (stubbed), then create.
-            if not verify_with_gju(email, password):
+            # Unknown email: this is the signup path, so it's gated to real GJU
+            # addresses. Existing accounts (e.g. admins/superadmins created via
+            # `createsuperuser`, who may not have a @gju.edu.jo email) skip this
+            # gate entirely and go straight to the password check below.
+            if not _is_gju_email(email):
                 return Response(
-                    {"detail": "Incorrect GJU email or password."},
+                    {"detail": "Please use your GJU email address."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # First time we see this email: prove it's a real GJU account by
+            # logging into MyGJU with these credentials.
+            result = gju_verifier.verify(email, password)
+            if result == "wrong":
+                return Response(
+                    {"detail": "Incorrect email or password."},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
+            if result == "unavailable":
+                # We couldn't reach a verdict (portal down / blocking us). Fail
+                # closed rather than admit an unverified account. TODO: fall
+                # back to email-link verification here (see tech-plan) so signup
+                # still works when GJU is unreachable.
+                return Response(
+                    {
+                        "detail": "We couldn't verify your GJU account right now. "
+                        "Please try again in a few minutes."
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            # result == "ok": credentials accepted by MyGJU.
             user = User.objects.create_user(email=email, password=password)
             # Passing the GJU check is what unlocks downloads and uploads.
             user.is_gju_verified = True

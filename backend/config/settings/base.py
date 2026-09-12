@@ -118,6 +118,21 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# --- GJU credential verifier ---------------------------------------------
+# At first-time signup, an unknown GJU email/password is checked against the
+# MyGJU portal via a Playwright browser (see accounts/gju_verifier). MyGJU's
+# WAF blocks browsers that carry an automation fingerprint; the verifier strips
+# that fingerprint, which lets it run fully headless (no visible window, and no
+# virtual display needed on a server). Set headless False only to watch it.
+GJU_VERIFIER_ENABLED = env.bool("GJU_VERIFIER_ENABLED", default=True)
+GJU_VERIFIER_HEADLESS = env.bool("GJU_VERIFIER_HEADLESS", default=True)
+GJU_VERIFIER_TIMEOUT_MS = env.int("GJU_VERIFIER_TIMEOUT_MS", default=15000)
+# Circuit breaker: after this many consecutive "unavailable" results the
+# verifier stops making live attempts for the cooldown window, so a WAF block
+# or portal outage can't burn the shared server IP across a burst of signups.
+GJU_VERIFIER_BREAKER_THRESHOLD = env.int("GJU_VERIFIER_BREAKER_THRESHOLD", default=3)
+GJU_VERIFIER_BREAKER_COOLDOWN_S = env.int("GJU_VERIFIER_BREAKER_COOLDOWN_S", default=1800)
+
 # --- DRF ------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
