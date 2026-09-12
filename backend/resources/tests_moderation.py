@@ -20,17 +20,21 @@ from .models import Resource
 
 User = get_user_model()
 
-SHA = "a" * 64
+# Distinct per call: the course+sha256 uniqueness constraint does not care
+# that these are test fixtures, so two resources in the same course sharing a
+# hash fail to save.
+_next_sha = iter(f"{n:064x}" for n in range(1, 10_000))
 
 
 def _make_resource(course, uploader=None, **overrides):
+    sha = overrides.pop("sha256", None) or next(_next_sha)
     fields = {
         "course": course,
         "type": "exam",
         "title": "Midterm 2023",
         "kind": Resource.Kind.FILE,
-        "file_key": storage.build_key(SHA, "midterm.pdf"),
-        "sha256": SHA,
+        "file_key": storage.build_key(sha, "midterm.pdf"),
+        "sha256": sha,
         "size_bytes": 1024,
         "status": Resource.Status.PENDING,
         "uploader": uploader,
