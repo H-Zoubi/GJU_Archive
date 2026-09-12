@@ -32,16 +32,21 @@ Design constraints (see the auth-research memo):
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
-from typing import Literal
+from typing import Iterator, Literal
 
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 VerifyResult = Literal["ok", "wrong", "unavailable"]
+
+
+class GjuSessionError(Exception):
+    """authenticated_session() could not produce a logged-in page."""
 
 LOGIN_URL = "https://mygju.gju.edu.jo/faces/index.xhtml"
 USERNAME_SELECTOR = 'input[name="j_idt15:login_username"]'
@@ -184,6 +189,62 @@ def _fill_and_submit_login(page, username: str, password: str, timeout_ms: int) 
         pass
 
     page.wait_for_timeout(1000)  # let any AJAX postback settle
+
+
+@contextlib.contextmanager
+def authenticated_session(email: str, password: str) -> Iterator["Page"]:  # noqa: F821
+    """
+    Log into MyGJU and yield an authenticated Playwright `page` for the
+    caller to navigate around and scrape (e.g. the sync worker fetching a
+    student's profile/grades). Closes the browser on exit either way.
+
+    Raises GjuSessionError if the login doesn't succeed -- unlike verify(),
+    there is no "unavailable" to return to a caller here: the sync worker
+    decides for itself how to record/retry a failure per student. Honors the
+    same circuit breaker as verify() (same process, same portal) so a WAF
+    block or outage backs off both signup and sync attempts together.
+    """
+    from playwright.sync_api import sync_playwright
+
+    if not getattr(settings, "GJU_VERIFIER_ENABLED", True):
+        raise GjuSessionError("GJU verifier is disabled (GJU_VERIFIER_ENABLED=False).")
+    if _breaker_is_open():
+        raise GjuSessionError("GJU verifier circuit breaker is open.")
+
+    headless = getattr(settings, "GJU_VERIFIER_HEADLESS", False)
+    timeout_ms = getattr(settings, "GJU_VERIFIER_TIMEOUT_MS", 15000)
+    username = email.split("@", 1)[0]
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=headless,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        try:
+            context = browser.new_context(
+                user_agent=_USER_AGENT,
+                viewport={"width": 1366, "height": 768},
+                locale="en-US",
+                timezone_id="Asia/Amman",
+            )
+            context.add_init_script(_STEALTH_INIT)
+            page = context.new_page()
+            page.set_default_timeout(timeout_ms)
+
+            page.goto(LOGIN_URL, wait_until="domcontentloaded")
+            if not page.locator(USERNAME_SELECTOR).count():
+                _breaker_record("unavailable")
+                raise GjuSessionError("Could not reach the MyGJU login form (possible WAF block).")
+
+            _fill_and_submit_login(page, username, password, timeout_ms)
+            result = _classify(page.url, page.inner_text("body"))
+            _breaker_record(result)
+            if result != "ok":
+                raise GjuSessionError(f"MyGJU login did not succeed (classified {result!r}).")
+
+            yield page
+        finally:
+            browser.close()
 
 
 def verify(email: str, password: str) -> VerifyResult:

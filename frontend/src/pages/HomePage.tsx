@@ -12,6 +12,7 @@ import Logo from "../components/Logo";
 import BrowsePage from "./BrowsePage";
 import CoursePage from "./CoursePage";
 import ModerationPage from "./ModerationPage";
+import ProfilePage from "./ProfilePage";
 import SubjectPage from "./SubjectPage";
 
 /**
@@ -42,7 +43,9 @@ export default function HomePage() {
                 Review queue
               </Link>
             )}
-            <span className="text-slate-500">{user?.email}</span>
+            <Link to="/profile" className="text-slate-600 hover:text-slate-900">
+              {user?.email}
+            </Link>
             <button
               onClick={() => logout()}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-100 transition"
@@ -58,6 +61,7 @@ export default function HomePage() {
         <Route path="/subjects/:slug" element={<SubjectRoute />} />
         <Route path="/courses/:code" element={<CourseRoute />} />
         <Route path="/moderation" element={<ModerationRoute />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="*" element={<BrowseRoute />} />
       </Routes>
     </div>

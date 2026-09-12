@@ -39,6 +39,13 @@ class LoginView(APIView):
       is also encrypted via Vault transit and stored for weekly sync (see
       services.opt_in_gju_sync and gju-vault-password-storage-decision).
       A student can still opt out any time via DELETE /api/auth/gju-sync/.
+
+    Either branch also opportunistically refreshes the student's profile
+    (major, entry year) from MyGJU if it isn't on file yet, using the
+    plaintext password already in hand for this request -- never a
+    stored/decrypted one, so this needs no Vault token at all. Adds real
+    latency (a live Playwright login) the first time a given student hits
+    this, but only that first time; see services.needs_profile_refresh.
     """
 
     permission_classes = [AllowAny]
@@ -94,6 +101,7 @@ class LoginView(APIView):
                 # feature, account creation is the critical path. There is no
                 # retry: this was the one moment the plaintext existed.
                 logger.exception("Failed to store GJU credential for %s at signup", email)
+            self._refresh_profile(user, password)
             django_login(request, user, backend=MODEL_BACKEND)
             return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
@@ -109,8 +117,17 @@ class LoginView(APIView):
                 {"detail": "This account has been banned."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        if services.needs_profile_refresh(auth_user):
+            self._refresh_profile(auth_user, password)
         django_login(request, auth_user)
         return Response(UserSerializer(auth_user).data)
+
+    def _refresh_profile(self, user, password: str) -> None:
+        """Best-effort; a failure here must never block signup or login."""
+        try:
+            services.refresh_profile_from_mygju(user, password)
+        except Exception:
+            logger.exception("Failed to refresh MyGJU profile for %s", user.email)
 
 
 class LogoutView(APIView):

@@ -11,6 +11,8 @@ export interface User {
   can_moderate: boolean;
   /** Set once the student picks a major; drives the default browse filter. */
   major: { slug: string; name: string } | null;
+  /** Filled in from MyGJU at signup/login; null until then. */
+  entry_year: number | null;
 }
 
 function getCookie(name: string): string | null {

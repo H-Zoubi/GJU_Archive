@@ -25,12 +25,19 @@ class UserSerializer(serializers.Serializer):
     is_gju_verified = serializers.BooleanField()
     # Drives whether the review dashboard is offered at all.
     can_moderate = serializers.BooleanField(read_only=True)
-    # Drives the "my major" default when browsing. Null until the student
-    # picks one, in which case the UI falls back to showing every major.
+    # Drives the "my major" default when browsing. Null until known (either
+    # picked manually or filled in from MyGJU -- see
+    # accounts.services.refresh_profile_from_mygju), in which case the UI
+    # falls back to showing every major.
     major = serializers.SerializerMethodField()
+    entry_year = serializers.SerializerMethodField()
 
     def get_major(self, obj):
         profile = getattr(obj, "student_profile", None)
         if profile is None or profile.major is None:
             return None
         return {"slug": profile.major.slug, "name": profile.major.name}
+
+    def get_entry_year(self, obj):
+        profile = getattr(obj, "student_profile", None)
+        return profile.entry_year if profile is not None else None
