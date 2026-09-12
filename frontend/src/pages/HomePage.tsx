@@ -8,6 +8,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import Logo from "../components/Logo";
 import BrowsePage from "./BrowsePage";
 import CoursePage from "./CoursePage";
 import ModerationPage from "./ModerationPage";
@@ -27,8 +28,8 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="font-bold text-slate-900 hover:text-slate-600">
-            GJU Archive
+          <Link to="/" className="text-lg text-slate-900 hover:text-slate-600">
+            <Logo />
           </Link>
           <div className="flex items-center gap-3 text-sm">
             {/* Convenience only: the moderation API checks permission itself,
