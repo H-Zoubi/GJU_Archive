@@ -24,7 +24,10 @@ class ResourceSerializer(serializers.ModelSerializer):
 
     course_code = serializers.CharField(source="course.code", read_only=True)
     course_name = serializers.CharField(source="course.name", read_only=True)
-    term_label = serializers.CharField(source="term.__str__", read_only=True, default=None)
+    # Not source="term.__str__": on a resource with no term that resolves to
+    # NoneType's bound __str__ method rather than raising, and the field
+    # happily renders that object's repr into the API response.
+    term_label = serializers.SerializerMethodField()
     instructor_name = serializers.CharField(
         source="instructor.full_name", read_only=True, default=None
     )
@@ -59,10 +62,13 @@ class ResourceSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_term_label(self, obj) -> str | None:
+        return str(obj.term) if obj.term_id else None
+
     def get_uploader_name(self, obj) -> str:
         # Uploads are credited by display name only; the email stays private.
         if obj.uploader_id is None:
-            return "GJU Vault"
+            return "GJU Archive"
         return obj.uploader.full_name or obj.uploader.email.split("@")[0]
 
 

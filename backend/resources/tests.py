@@ -222,6 +222,13 @@ class DownloadGateTests(TestCase):
         # bytes, so it must never appear in a public response.
         self.assertNotIn("file_key", body)
 
+    def test_absent_term_and_instructor_serialize_as_null(self):
+        # Regression: source="term.__str__" resolved to NoneType's bound method
+        # instead of raising, and rendered its repr into the response.
+        body = self.client.get(reverse("resource-list")).json()["results"][0]
+        self.assertIsNone(body["term_label"])
+        self.assertIsNone(body["instructor_name"])
+
     def test_anonymous_download_is_refused_with_a_code_the_spa_can_act_on(self):
         response = self._get()
         self.assertEqual(response.status_code, 401)

@@ -78,12 +78,20 @@ export default function CoursePage({ code, onBack }: Props) {
 
       <CourseFiles courseCode={course.code} />
 
-      <section className="mt-8">
-        <h2 className="text-sm font-medium text-slate-500 mb-3">
+      {/* Collapsed by default: this runs to dozens of sections and would
+          otherwise bury the files a student came for. <details> gives the
+          disclosure behaviour, keyboard support and open/close state for
+          free, with no JavaScript. */}
+      <details className="mt-8 group">
+        <summary className="cursor-pointer list-none text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-2">
+          <span className="text-slate-400 transition-transform group-open:rotate-90">
+            ▸
+          </span>
           Offered in {history.length} semester
           {history.length === 1 ? "" : "s"}
-        </h2>
+        </summary>
 
+        <div className="mt-3">
         {history.length === 0 ? (
           <p className="text-slate-400">No recorded offerings yet.</p>
         ) : (
@@ -123,8 +131,8 @@ export default function CoursePage({ code, onBack }: Props) {
             ))}
           </div>
         )}
-      </section>
-
+        </div>
+      </details>
     </div>
   );
 }

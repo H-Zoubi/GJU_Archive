@@ -3,7 +3,6 @@ import { catalog, type CourseSummary } from "../lib/catalog";
 
 interface Props {
   slug: string;
-  name: string;
   /** Narrows the subject's courses to one major, when one is selected. */
   major?: string | null;
   onOpenCourse: (code: string) => void;
@@ -12,11 +11,13 @@ interface Props {
 
 export default function SubjectPage({
   slug,
-  name,
   major,
   onOpenCourse,
   onBack,
 }: Props) {
+  // Fetched rather than passed in: this page has its own URL, so it has to
+  // stand up on a cold load with nothing but the slug.
+  const [name, setName] = useState("");
   const [courses, setCourses] = useState<CourseSummary[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -35,6 +36,13 @@ export default function SubjectPage({
 
   useEffect(() => setPage(1), [slug, major]);
 
+  useEffect(() => {
+    catalog
+      .subject(slug)
+      .then((subject) => setName(subject.name))
+      .catch(() => setName(slug));
+  }, [slug]);
+
   const pages = Math.ceil(count / 25);
 
   return (
@@ -46,7 +54,7 @@ export default function SubjectPage({
         ← All subjects
       </button>
 
-      <h1 className="text-2xl font-bold text-slate-900">{name}</h1>
+      <h1 className="text-2xl font-bold text-slate-900">{name || " "}</h1>
       <p className="text-slate-500 mt-1 mb-6">
         {count} course{count === 1 ? "" : "s"}
         {major ? " in the selected major" : ""}

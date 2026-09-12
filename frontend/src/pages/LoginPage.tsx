@@ -26,7 +26,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">GJU Vault</h1>
+          <h1 className="text-3xl font-bold text-slate-900">GJU Archive</h1>
           <p className="text-slate-500 mt-1">Sign in with your GJU account</p>
         </div>
 

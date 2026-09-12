@@ -9,21 +9,67 @@ import {
   type UploadStage,
 } from "../lib/files";
 
+// A native <select> renders text only, so the type list is marked with emoji.
+// The file-format badges below are real DOM and can be styled properly.
 const TYPES = [
-  ["past_paper", "Past paper"],
-  ["midterm", "Midterm"],
-  ["final", "Final"],
-  ["quiz", "Quiz"],
-  ["assignment", "Assignment"],
-  ["solution", "Solution"],
-  ["slides", "Slides"],
-  ["lecture_notes", "Lecture notes"],
-  ["summary", "Summary"],
-  ["lab", "Lab"],
-  ["project", "Project"],
-  ["book", "Book"],
-  ["other", "Other"],
+  ["past_paper", "📄 Past paper"],
+  ["midterm", "📝 Midterm"],
+  ["final", "🎓 Final"],
+  ["quiz", "❓ Quiz"],
+  ["assignment", "📋 Assignment"],
+  ["solution", "✅ Solution"],
+  ["slides", "📊 Slides"],
+  ["lecture_notes", "📓 Lecture notes"],
+  ["summary", "📑 Summary"],
+  ["lab", "🔬 Lab"],
+  ["project", "🛠️ Project"],
+  ["book", "📚 Book"],
+  ["other", "📦 Other"],
 ] as const;
+
+/**
+ * What the file actually is, by extension.
+ *
+ * Separate from the resource `type` above: that says what the file is *for*
+ * (a midterm, a summary), this says what will open it. A student scanning the
+ * list wants to know at a glance which rows are slide decks.
+ */
+const FORMATS: Record<string, { label: string; className: string }> = {
+  pdf: { label: "PDF", className: "bg-red-100 text-red-700" },
+  ppt: { label: "PPT", className: "bg-orange-100 text-orange-700" },
+  pptx: { label: "PPT", className: "bg-orange-100 text-orange-700" },
+  doc: { label: "DOC", className: "bg-blue-100 text-blue-700" },
+  docx: { label: "DOC", className: "bg-blue-100 text-blue-700" },
+  xls: { label: "XLS", className: "bg-emerald-100 text-emerald-700" },
+  xlsx: { label: "XLS", className: "bg-emerald-100 text-emerald-700" },
+  zip: { label: "ZIP", className: "bg-slate-200 text-slate-600" },
+  png: { label: "IMG", className: "bg-purple-100 text-purple-700" },
+  jpg: { label: "IMG", className: "bg-purple-100 text-purple-700" },
+  jpeg: { label: "IMG", className: "bg-purple-100 text-purple-700" },
+  gif: { label: "IMG", className: "bg-purple-100 text-purple-700" },
+  webp: { label: "IMG", className: "bg-purple-100 text-purple-700" },
+  txt: { label: "TXT", className: "bg-slate-100 text-slate-600" },
+  md: { label: "TXT", className: "bg-slate-100 text-slate-600" },
+};
+
+const LINK_FORMAT = { label: "LINK", className: "bg-sky-100 text-sky-700" };
+const UNKNOWN_FORMAT = { label: "FILE", className: "bg-slate-100 text-slate-500" };
+
+function FormatBadge({ resource }: { resource: Resource }) {
+  const extension = resource.original_filename.split(".").pop()?.toLowerCase() ?? "";
+  const format =
+    resource.kind === "link" ? LINK_FORMAT : FORMATS[extension] ?? UNKNOWN_FORMAT;
+  return (
+    <span
+      // The label already reads as the format, so it is redundant to a screen
+      // reader announcing the filename next to it.
+      aria-hidden="true"
+      className={`shrink-0 rounded-md px-1.5 py-1 text-[10px] font-semibold tracking-wide ${format.className}`}
+    >
+      {format.label}
+    </span>
+  );
+}
 
 const STAGE_LABEL: Record<UploadStage, string> = {
   hashing: "Reading file…",
@@ -113,6 +159,7 @@ export default function CourseFiles({ courseCode }: { courseCode: string }) {
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
           {resources.map((resource) => (
             <li key={resource.id} className="flex items-center gap-3 px-4 py-3">
+              <FormatBadge resource={resource} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-slate-800">{resource.title}</p>
                 <p className="text-xs text-slate-400">
@@ -161,14 +208,17 @@ function UploadForm({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<string>("past_paper");
+  // Deliberately unset: a preselected type is one the student never looks at,
+  // and a whole course of files mislabelled "past paper" is worse than a
+  // moment's friction choosing.
+  const [type, setType] = useState<string>("");
   const [stage, setStage] = useState<UploadStage | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!file) return;
+    if (!file || !type) return;
     setError(null);
     try {
       const result = await uploadFile(
@@ -219,8 +269,13 @@ function UploadForm({
         <select
           value={type}
           onChange={(event) => setType(event.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm"
+          className={`rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm ${
+            type ? "text-slate-900" : "text-slate-400"
+          }`}
         >
+          <option value="" disabled>
+            Choose a type…
+          </option>
           {TYPES.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -242,13 +297,18 @@ function UploadForm({
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={!file || busy}
-        className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm text-white disabled:opacity-40"
-      >
-        Upload
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={!file || !type || busy}
+          className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm text-white disabled:opacity-40"
+        >
+          Upload
+        </button>
+        {file && !type && (
+          <span className="text-xs text-slate-500">Pick a type first.</span>
+        )}
+      </div>
     </form>
   );
 }

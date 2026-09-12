@@ -27,4 +27,4 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 EMAIL_USE_TLS = True
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="GJU Vault <no-reply@gjuvault.com>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="GJU Archive <no-reply@gjuarchive.com>")
