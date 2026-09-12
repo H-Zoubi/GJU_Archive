@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { byTerm, catalog, type CourseDetail } from "../lib/catalog";
+import CourseFiles from "../components/CourseFiles";
 
 interface Props {
   code: string;
@@ -122,10 +123,7 @@ export default function CoursePage({ code, onBack }: Props) {
         )}
       </section>
 
-      <p className="mt-8 text-xs text-slate-400">
-        Past papers and slides for this course are coming next — that’s the part
-        students upload.
-      </p>
+      <CourseFiles courseCode={course.code} />
     </div>
   );
 }

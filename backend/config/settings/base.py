@@ -127,6 +127,11 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    # Uploads are the expensive, abusable endpoint: each one reserves a row and
+    # hands out a signed URL to write to the bucket.
+    "DEFAULT_THROTTLE_RATES": {
+        "upload": env("UPLOAD_THROTTLE_RATE", default="30/day"),
+    },
 }
 
 # --- Internationalization -------------------------------------------------
@@ -134,6 +139,27 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Amman"
 USE_I18N = True
 USE_TZ = True
+
+# --- Object storage (S3-compatible) --------------------------------------
+# MinIO in dev, Cloudflare R2 / AWS S3 in production. Only the endpoint and
+# keys change between them; boto3 presigned URLs work identically against all.
+S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default="http://localhost:9000")
+S3_ACCESS_KEY = env("S3_ACCESS_KEY", default="minioadmin")
+S3_SECRET_KEY = env("S3_SECRET_KEY", default="minioadmin")
+S3_BUCKET = env("S3_BUCKET", default="gju-vault-dev")
+S3_REGION = env("S3_REGION", default="us-east-1")
+# Public base URL the *browser* uses to reach the bucket. Differs from
+# S3_ENDPOINT_URL when Django talks to MinIO over a docker network name while
+# the browser reaches it on localhost. Empty means "same as the endpoint".
+S3_PUBLIC_ENDPOINT_URL = env("S3_PUBLIC_ENDPOINT_URL", default="")
+
+# Presigned URL lifetimes, in seconds. Short by design: an upload URL only has
+# to survive one PUT, and a download URL is shareable until it expires.
+S3_UPLOAD_URL_TTL = env.int("S3_UPLOAD_URL_TTL", default=900)      # 15 min
+S3_DOWNLOAD_URL_TTL = env.int("S3_DOWNLOAD_URL_TTL", default=300)  # 5 min
+
+# --- Uploads --------------------------------------------------------------
+MAX_UPLOAD_BYTES = env.int("MAX_UPLOAD_BYTES", default=50 * 1024 * 1024)  # 50 MB
 
 # --- Static / media -------------------------------------------------------
 STATIC_URL = "static/"

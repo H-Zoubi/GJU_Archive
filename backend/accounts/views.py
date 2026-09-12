@@ -65,6 +65,9 @@ class LoginView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
             user = User.objects.create_user(email=email, password=password)
+            # Passing the GJU check is what unlocks downloads and uploads.
+            user.is_gju_verified = True
+            user.save(update_fields=["is_gju_verified"])
             django_login(request, user, backend=MODEL_BACKEND)
             return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 

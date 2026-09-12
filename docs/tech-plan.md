@@ -21,7 +21,7 @@
 | UI | **Tailwind CSS** (+ shadcn/ui optional) | Fast to build, looks decent by default |
 | Data fetching | **TanStack Query** | Caching, loading states and retries for API calls |
 | Database | **PostgreSQL** (managed: **Neon**) | Full-text and trigram search built in; Neon free tier is plenty for metadata |
-| File storage | **MinIO** (self-hosted, S3-compatible) via `django-storages` + `boto3`; swap to **S3/R2** later | Self-hosted now, cloud later with only an env-var change |
+| File storage | **MinIO** on the homelab (S3-compatible) via `boto3` presigned URLs; swap to **S3/R2** later | Self-hosted now, cloud later with only an env-var change |
 | Videos | **Links only** (YouTube / Drive / Telegram) | Hosting video is the one thing that would get expensive |
 | Search | **`django.contrib.postgres`**: full-text + `pg_trgm` | No Elasticsearch/Meilisearch needed at this scale |
 | Scheduled jobs | Django **management commands** run on a cron | Link checker, cleanup, backups. No Celery needed yet |
@@ -202,16 +202,33 @@ Permissions are DRF permission classes plus queryset filtering:
 
 ## Key flows
 
-### Upload
+### Upload *(implemented)*
 1. The student fills in the form (course, type, term/year, instructor) and picks a file.
-2. The browser computes the file's **SHA-256** and asks `GET /api/resources/exists?sha256=…`. If the file already exists, it says so and skips the upload.
-3. `POST /api/uploads/`: Django checks the account, file type (PDF, PPTX, DOCX, images, ZIP) and size (≤ 50 MB). It creates a `pending` Resource and returns a **presigned R2 PUT URL** (boto3).
-4. The browser uploads straight to R2 and then calls `POST /api/uploads/{id}/complete/`. Django verifies the object exists, then checks its size and file signature (magic bytes).
-5. The upload is **auto-approved** if the uploader is trusted (e.g. ≥ 5 approved uploads). Otherwise it goes to the moderation queue.
+2. The browser computes the file's **SHA-256** with WebCrypto and asks `GET /api/resources/exists/?sha256=…`. If the archive already has it, the upload is skipped and **nothing crosses the network**.
+3. `POST /api/uploads/`: Django checks the account, the file type and the size (≤ 50 MB), reserves a `pending` Resource and returns a **presigned PUT URL** valid for 15 minutes.
+4. The browser PUTs straight to the bucket, then calls `POST /api/uploads/{id}/complete/`. Django confirms the object exists, that its size matches what was declared, and that its **first bytes really are** the format the extension claimed. A mismatch deletes the object.
+5. The upload is **auto-approved** if the uploader is trusted (≥ 5 approved uploads). Otherwise it waits in the moderation queue.
 
-### Download
-- `GET /api/resources/{id}/download/` checks the login and redirects to a **presigned GET URL** that expires in about 10 minutes.
+Nothing is served until step 4 succeeds: a row with `upload_completed_at` null is an abandoned upload, invisible to every read path and swept by `manage.py purge_files`.
+
+**Object keys are content-addressed** — `resources/{sha[:2]}/{sha}/{safe-name}`. The same PDF uploaded by two students in two courses is one object, the key cannot be guessed from a resource id, and the two-character shard keeps any one prefix from growing unbounded. Because a key can be shared, `purge_files` only deletes an object once no live resource still points at it.
+
+### Download *(implemented)*
+- `GET /api/resources/{id}/download/` runs the entitlement check and returns a **presigned GET URL** that expires in 5 minutes, with the original filename restored via `Content-Disposition`. `?inline=1` serves it for preview instead of a save dialog.
+- Every hand-out writes a `Download` row. That log is the only thing that can answer "how many downloads has this student used this month", and it cannot be reconstructed later if it is not written now — which is why it exists before any paywall does.
 - PDFs preview in the browser with **PDF.js** (`react-pdf`).
+
+### Access control & the paywall seam *(implemented)*
+
+Every download passes through one function — `resources/entitlements.py::check_download(user, resource)` — which returns an allow, or a denial carrying a stable `code` (`login_required`, `not_gju_verified`, `banned`, `not_available`) and a message written for the student. The frontend switches on the code, so a new gate needs no API change.
+
+Today the rule is simply: browsing is public, downloading needs a verified GJU account. **Turning on a paywall later is an edit to that one function plus a `payments` app** — not a change to the storage layer, the views or the frontend. The shapes it could take, all expressible as a new denial:
+
+- a **quota** ("5 free downloads a month"), counted from the `Download` log;
+- a **contribution rule** ("upload an approved file to unlock downloads"), counted from `approved_uploads_count`;
+- a **subscription or credit balance**, from the payments app.
+
+**Payment rails.** The requirement is Apple Pay, Visa/debit and ZainCash. That rules out Stripe (no Jordanian sellers) and largely rules out Paddle / Lemon Squeezy (no local wallets). The realistic candidates are **Amazon Payment Services** (ex-PayFort), **HyperPay** and **Tap** for cards + Apple Pay, with **ZainCash** added alongside as its own method — so the seam should be a small `PaymentProvider` interface (`create_checkout()` / `handle_webhook()`) with more than one implementation from the start. ⚠️ Confirm current Jordan onboarding and Apple Pay support with each provider directly before committing; their terms change and none of this is verified.
 
 ### Moderation (Django admin)
 - The Resource admin has list filters (status, course, type), bulk actions (approve / reject / remove), and a file preview link.

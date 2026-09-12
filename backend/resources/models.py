@@ -93,6 +93,10 @@ class Resource(TimeStampedModel, SoftDeleteModel):
     size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
     mime_type = models.CharField(max_length=120, blank=True)
     original_filename = models.CharField(max_length=255, blank=True)
+    # Set once the browser's direct PUT has been confirmed against the bucket.
+    # A file row with this null is a started-but-abandoned upload; nothing is
+    # ever served from one, and `purge_incomplete_uploads` sweeps them.
+    upload_completed_at = models.DateTimeField(null=True, blank=True)
 
     # Link fields (kind == LINK)
     url = models.URLField(max_length=1000, blank=True)
@@ -146,6 +150,36 @@ class Resource(TimeStampedModel, SoftDeleteModel):
 
     def __str__(self):
         return f"{self.title} ({self.get_type_display()})"
+
+
+class Download(TimeStampedModel):
+    """
+    One row per file handed out.
+
+    Kept because it is the only thing that can answer "how many downloads has
+    this student used this month" — which is what a quota-shaped paywall needs,
+    and which cannot be reconstructed after the fact if we did not log it. It
+    also tells moderators which files are actually worth keeping.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="downloads",
+    )
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name="downloads")
+
+    class Meta:
+        indexes = [
+            # Serves both "this user's recent downloads" (quota) and ordering.
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["resource", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Download<{self.user_id}->{self.resource_id}>"
 
 
 class Vote(TimeStampedModel):
