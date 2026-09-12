@@ -1,3 +1,14 @@
+# `docker compose up` brings up the whole stack (db, object storage, Vault,
+# backend, frontend) with no manual setup steps.
+#
+# Prefer running backend/frontend on the host instead (faster reload, easier
+# debugging)? Bring up just their dependencies and run the two apps yourself:
+#   docker compose up db vault minio minio-init
+#   (backend) source .venv/bin/activate && python manage.py runserver
+#   (frontend) npm run dev
+# In that hybrid mode, run scripts/vault_dev_setup.sh once to get tokens for
+# backend/.env -- the automatic bootstrap below only runs inside the
+# `backend` container.
 services:
   db:
     image: postgres:16
@@ -16,9 +27,12 @@ services:
       retries: 5
 
   # Self-hosted, S3-compatible object storage. Swap for AWS S3 / Cloudflare R2
-  # in production by changing the endpoint and keys — no code change.
+  # (or the homelab MinIO, in backend/.env) in production by changing the
+  # endpoint and keys -- no code change.
   minio:
-    image: minio/minio
+    # Docker Hub's minio/minio now requires auth (MinIO restricted anonymous
+    # pulls) -- quay.io is the still-open mirror.
+    image: quay.io/minio/minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -28,6 +42,94 @@ services:
       - "9001:9001"   # web console
     volumes:
       - miniodata:/data
+
+  # One-shot: creates the dev bucket so uploads work with zero manual setup.
+  # Safe to re-run -- `mc mb --ignore-existing` no-ops if it already exists.
+  minio-init:
+    image: quay.io/minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      sh -c "
+        until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done &&
+        mc mb --ignore-existing local/gju-vault-dev
+      "
+
+  # Dev-mode Vault for the GJU-credential transit engine (see
+  # backend/accounts/vault_transit.py). Dev mode auto-unseals with a fixed
+  # root token and keeps nothing on disk -- fine for local dev, NOT how this
+  # runs in production (the homelab deployment uses a real init/unseal and
+  # split encrypt/decrypt policies).
+  #
+  # The `backend` service bootstraps the transit engine + key + policies +
+  # its own encrypt token on startup (see docker-entrypoint.sh) using
+  # VAULT_DEV_ROOT_TOKEN below -- that variable must never be set outside
+  # this file.
+  vault:
+    image: hashicorp/vault:1.17
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    # Optional: layers a contributor's own backend/.env (GJU_VERIFIER
+    # settings, a real S3 endpoint, etc.) under the container-network
+    # overrides below. Nothing breaks if the file doesn't exist.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgres://gjuvault:gjuvault@db:5432/gjuvault
+      VAULT_ADDR: http://vault:8200
+      VAULT_DEV_ROOT_TOKEN: dev-root-token
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: gju-vault-dev
+      # Force-clear whatever a contributor's own backend/.env sets: docker
+      # bootstraps a fresh VAULT_ENCRYPT_TOKEN itself on startup (see
+      # docker-entrypoint.sh), and VAULT_DECRYPT_TOKEN must never reach this
+      # container at all -- by design, only the offline sync worker holds
+      # that one (see accounts/vault_transit.py). Without this, a stale real
+      # token from bare-metal dev (or worse, a real deployment token) would
+      # otherwise leak into this container's environment.
+      VAULT_ENCRYPT_TOKEN: ""
+      VAULT_DECRYPT_TOKEN: ""
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

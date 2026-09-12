@@ -160,29 +160,30 @@ def _run_login(username: str, password: str) -> tuple[str, str]:
             if not page.locator(USERNAME_SELECTOR).count():
                 return page.url, page.inner_text("body")
 
-            page.fill(USERNAME_SELECTOR, username)
-            page.fill(PASSWORD_SELECTOR, password)
-
-            # The submit button's JSF id is auto-generated and unstable, so we
-            # click the first submit-like control rather than target it by id.
-            # (This is the submit path proven against the live portal.)
-            submit = page.locator(
-                'input[type="submit"], button[type="submit"], button'
-            ).first
-            try:
-                with page.expect_navigation(
-                    wait_until="domcontentloaded", timeout=timeout_ms
-                ):
-                    submit.click()
-            except Exception:
-                # JSF may postback via AJAX without a full navigation; fall
-                # through and read whatever the page became.
-                pass
-
-            page.wait_for_timeout(1000)  # let any AJAX postback settle
+            _fill_and_submit_login(page, username, password, timeout_ms)
             return page.url, page.inner_text("body")
         finally:
             browser.close()
+
+
+def _fill_and_submit_login(page, username: str, password: str, timeout_ms: int) -> None:
+    """Shared fill/submit step used by both _run_login and authenticated_session."""
+    page.fill(USERNAME_SELECTOR, username)
+    page.fill(PASSWORD_SELECTOR, password)
+
+    # The submit button's JSF id is auto-generated and unstable, so we click
+    # the first submit-like control rather than target it by id. (This is the
+    # submit path proven against the live portal.)
+    submit = page.locator('input[type="submit"], button[type="submit"], button').first
+    try:
+        with page.expect_navigation(wait_until="domcontentloaded", timeout=timeout_ms):
+            submit.click()
+    except Exception:
+        # JSF may postback via AJAX without a full navigation; fall through
+        # and read whatever the page became.
+        pass
+
+    page.wait_for_timeout(1000)  # let any AJAX postback settle
 
 
 def verify(email: str, password: str) -> VerifyResult:

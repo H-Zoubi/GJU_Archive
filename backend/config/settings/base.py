@@ -133,6 +133,25 @@ GJU_VERIFIER_TIMEOUT_MS = env.int("GJU_VERIFIER_TIMEOUT_MS", default=15000)
 GJU_VERIFIER_BREAKER_THRESHOLD = env.int("GJU_VERIFIER_BREAKER_THRESHOLD", default=3)
 GJU_VERIFIER_BREAKER_COOLDOWN_S = env.int("GJU_VERIFIER_BREAKER_COOLDOWN_S", default=1800)
 
+# --- Vault transit (GJU credential encryption) ----------------------------
+# Envelope-encrypts the real GJU password for students who opt into weekly
+# MyGJU data sync (see accounts/vault_transit.py and the GjuCredential model).
+# The transit key itself never leaves Vault. By design, a deployment sets
+# only ONE of the two tokens below: the public web app gets
+# VAULT_ENCRYPT_TOKEN (Vault policy allows transit/encrypt/<key> only) and the
+# offline sync worker gets VAULT_DECRYPT_TOKEN (policy allows
+# transit/decrypt/<key> only) -- so a compromised web process has no way to
+# decrypt a stored credential.
+VAULT_ADDR = env("VAULT_ADDR", default="http://localhost:8200")
+VAULT_TRANSIT_KEY_NAME = env("VAULT_TRANSIT_KEY_NAME", default="gju-credentials")
+VAULT_ENCRYPT_TOKEN = env("VAULT_ENCRYPT_TOKEN", default="")
+VAULT_DECRYPT_TOKEN = env("VAULT_DECRYPT_TOKEN", default="")
+# Only ever set in docker-compose, for the throwaway dev-mode Vault -- lets
+# the backend container bootstrap its own encrypt token on startup instead of
+# requiring a manual `scripts/vault_dev_setup.sh` run. See
+# accounts/management/commands/vault_bootstrap.py.
+VAULT_DEV_ROOT_TOKEN = env("VAULT_DEV_ROOT_TOKEN", default="")
+
 # --- DRF ------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

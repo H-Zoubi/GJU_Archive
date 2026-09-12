@@ -6,13 +6,18 @@ Nothing here touches the real MyGJU portal. `_classify` is exercised against
 saved page fixtures, and LoginView's branches are exercised by mocking
 `gju_verifier.verify` so no browser is launched.
 """
+import base64
 from unittest import mock
 
+from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from . import gju_verifier
+from . import gju_verifier, services, vault_transit
+from .models import GjuCredential
+from .serializers import UserSerializer
 
 User = get_user_model()
 
@@ -132,6 +137,28 @@ class LoginViewBranchTests(TestCase):
         user = User.objects.get(email="new@gju.edu.jo")
         self.assertTrue(user.is_gju_verified)
 
+    @mock.patch("accounts.services.vault_transit.encrypt", return_value="vault:v1:ct")
+    @mock.patch.object(gju_verifier, "verify", return_value="ok")
+    def test_ok_signup_also_stores_the_gju_credential(self, _verify, encrypt):
+        # Signup is the one moment this app ever sees the real GJU password,
+        # so it must be captured then -- not left to a separate step nobody
+        # is ever prompted to take. See gju-vault-password-storage-decision.
+        resp = self._post(password="real-gju-pw")
+        self.assertEqual(resp.status_code, 201)
+        user = User.objects.get(email="new@gju.edu.jo")
+        encrypt.assert_called_once_with("real-gju-pw")
+        credential = GjuCredential.objects.get(user=user)
+        self.assertEqual(credential.ciphertext, b"vault:v1:ct")
+
+    @mock.patch.object(services, "opt_in_gju_sync", side_effect=RuntimeError("vault is down"))
+    @mock.patch.object(gju_verifier, "verify", return_value="ok")
+    def test_signup_still_succeeds_if_credential_storage_fails(self, _verify, _opt_in):
+        # A verified signup must not be blocked by Vault being unreachable --
+        # sync is a bonus feature, account creation is the critical path.
+        resp = self._post()
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(User.objects.filter(email="new@gju.edu.jo").exists())
+
     @mock.patch.object(gju_verifier, "verify", return_value="wrong")
     def test_wrong_rejects_and_creates_nothing(self, _verify):
         resp = self._post()
@@ -158,3 +185,88 @@ class LoginViewBranchTests(TestCase):
         resp = self._post(email="admin@example.com", password="adminpass")
         self.assertEqual(resp.status_code, 200)
         verify.assert_not_called()
+
+
+class VaultTransitTests(TestCase):
+    """encrypt()/decrypt() call the right transit path with the right token."""
+
+    @override_settings(
+        VAULT_ADDR="http://vault.test:8200",
+        VAULT_TRANSIT_KEY_NAME="gju-credentials",
+        VAULT_ENCRYPT_TOKEN="enc-tok",
+    )
+    def test_encrypt_uses_the_encrypt_token(self):
+        with mock.patch.object(vault_transit, "hvac") as hvac_mod:
+            client = hvac_mod.Client.return_value
+            client.secrets.transit.encrypt_data.return_value = {
+                "data": {"ciphertext": "vault:v1:xyz"}
+            }
+            result = vault_transit.encrypt("hunter2")
+            hvac_mod.Client.assert_called_once_with(url="http://vault.test:8200", token="enc-tok")
+            client.secrets.transit.encrypt_data.assert_called_once_with(
+                name="gju-credentials", plaintext=base64.b64encode(b"hunter2").decode()
+            )
+            self.assertEqual(result, "vault:v1:xyz")
+
+    @override_settings(VAULT_ENCRYPT_TOKEN="")
+    def test_encrypt_without_a_configured_token_raises(self):
+        with self.assertRaises(ImproperlyConfigured):
+            vault_transit.encrypt("hunter2")
+
+    @override_settings(VAULT_DECRYPT_TOKEN="dec-tok")
+    def test_decrypt_uses_the_decrypt_token(self):
+        with mock.patch.object(vault_transit, "hvac") as hvac_mod:
+            client = hvac_mod.Client.return_value
+            client.secrets.transit.decrypt_data.return_value = {
+                "data": {"plaintext": base64.b64encode(b"hunter2").decode()}
+            }
+            result = vault_transit.decrypt("vault:v1:xyz")
+            self.assertEqual(hvac_mod.Client.call_args.kwargs["token"], "dec-tok")
+            self.assertEqual(result, "hunter2")
+
+    @override_settings(VAULT_DECRYPT_TOKEN="")
+    def test_decrypt_without_a_configured_token_raises(self):
+        with self.assertRaises(ImproperlyConfigured):
+            vault_transit.decrypt("vault:v1:xyz")
+
+
+class GjuSyncViewTests(TestCase):
+    """The opt-in/revoke endpoint never touches the plaintext password itself."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="student@gju.edu.jo", password="pw12345")
+        self.client.force_login(self.user)
+        self.url = reverse("auth-gju-sync")
+
+    @mock.patch("accounts.services.vault_transit.encrypt", return_value="vault:v1:ct")
+    def test_opt_in_stores_ciphertext_not_plaintext(self, encrypt):
+        resp = self.client.post(self.url, {"password": "real-gju-pw"})
+        self.assertEqual(resp.status_code, 204)
+        encrypt.assert_called_once_with("real-gju-pw")
+        credential = GjuCredential.objects.get(user=self.user)
+        self.assertEqual(credential.ciphertext, b"vault:v1:ct")
+
+    def test_revoke_deletes_the_credential(self):
+        GjuCredential.objects.create(user=self.user, ciphertext=b"vault:v1:ct")
+        resp = self.client.delete(self.url)
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(GjuCredential.objects.filter(user=self.user).exists())
+
+    def test_requires_authentication(self):
+        self.client.logout()
+        resp = self.client.post(self.url, {"password": "x"})
+        self.assertIn(resp.status_code, (401, 403))
+
+
+class GjuCredentialExposureTests(TestCase):
+    """GjuCredential must never surface through the admin or the API."""
+
+    def test_not_registered_in_admin(self):
+        self.assertNotIn(GjuCredential, admin.site._registry)
+
+    def test_user_serializer_never_mentions_the_credential(self):
+        user = User.objects.create_user(email="s@gju.edu.jo", password="pw12345")
+        GjuCredential.objects.create(user=user, ciphertext=b"vault:v1:ct")
+        rendered = str(UserSerializer(user).data)
+        self.assertNotIn("ciphertext", rendered)
+        self.assertNotIn("vault:v1:ct", rendered)

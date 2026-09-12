@@ -6,6 +6,15 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(style={"input_type": "password"}, trim_whitespace=False)
 
 
+class GjuSyncOptInSerializer(serializers.Serializer):
+    """Re-submits the GJU password so it can be encrypted for auto-sync.
+
+    Never persisted or logged as-is -- see accounts.services.opt_in_gju_sync.
+    """
+
+    password = serializers.CharField(style={"input_type": "password"}, trim_whitespace=False)
+
+
 class UserSerializer(serializers.Serializer):
     """Public shape of the logged-in user. Never includes password data."""
 

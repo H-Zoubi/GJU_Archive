@@ -1,0 +1,5 @@
+# Shell scripts must keep LF endings regardless of a contributor's local
+# autocrlf setting -- a CRLF-checked-out entrypoint breaks inside the Linux
+# container it runs in (the backend Dockerfile normalizes this defensively
+# too, but not committing CRLF in the first place is better).
+*.sh text eol=lf

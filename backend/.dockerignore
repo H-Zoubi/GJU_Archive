@@ -1,0 +1,17 @@
+# Never bake real secrets or local dev artifacts into the image.
+.env
+.env.*
+!.env.example
+db.sqlite3
+
+.venv/
+venv/
+__pycache__/
+*.pyc
+staticfiles/
+
+.git/
+.gitignore
+
+.pytest_cache/
+.mypy_cache/

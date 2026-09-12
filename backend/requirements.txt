@@ -11,3 +11,7 @@ lxml>=5.0
 # GJU credential verifier drives a real browser (MyGJU's WAF blocks plain
 # headless). After install, run once: `playwright install chromium`.
 playwright>=1.44
+
+# GJU credential storage: talks to HashiCorp Vault's transit engine so the
+# app never holds the encryption key (see accounts/vault_transit.py).
+hvac>=2.1
