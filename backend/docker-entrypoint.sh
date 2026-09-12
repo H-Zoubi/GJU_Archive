@@ -15,4 +15,10 @@ fi
 
 python manage.py migrate --noinput
 
+# Ensures the default catalog (majors, courses, terms, offerings, ...) exists.
+# A no-op once it's there, so this is safe to run on every container start --
+# it only matters the first time a fresh (or reset) database comes up. Never
+# touches student/file data -- see `manage.py reset_student_data` for that.
+python manage.py seed_academics
+
 exec "$@"

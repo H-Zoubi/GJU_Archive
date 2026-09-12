@@ -12,6 +12,7 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: gjuvault
       POSTGRES_USER: gjuvault
@@ -33,6 +34,7 @@ services:
     # Docker Hub's minio/minio now requires auth (MinIO restricted anonymous
     # pulls) -- quay.io is the still-open mirror.
     image: quay.io/minio/minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -42,6 +44,11 @@ services:
       - "9001:9001"   # web console
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # One-shot: creates the dev bucket so uploads work with zero manual setup.
   # Safe to re-run -- `mc mb --ignore-existing` no-ops if it already exists.
@@ -67,6 +74,7 @@ services:
   # this file.
   vault:
     image: hashicorp/vault:1.17
+    restart: unless-stopped
     cap_add:
       - IPC_LOCK
     environment:
@@ -83,6 +91,7 @@ services:
   backend:
     build:
       context: ./backend
+    restart: unless-stopped
     # Optional: layers a contributor's own backend/.env (GJU_VERIFIER
     # settings, a real S3 endpoint, etc.) under the container-network
     # overrides below. Nothing breaks if the file doesn't exist.
@@ -121,15 +130,22 @@ services:
   frontend:
     build:
       context: ./frontend
+    restart: unless-stopped
     environment:
       VITE_API_PROXY_TARGET: http://backend:8000
+      # Docker Desktop on Windows doesn't forward real file-change events
+      # across the ./frontend bind mount, so Vite's watcher needs to poll
+      # instead -- otherwise HMR silently keeps serving stale content after
+      # every host-side edit. See vite.config.ts.
+      VITE_WATCH_POLL: "true"
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

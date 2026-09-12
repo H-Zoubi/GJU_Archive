@@ -37,6 +37,13 @@
 
 ## Architecture
 
+*Target architecture below (Render/Neon/Cloudflare, a domain, paid hosting).
+What actually runs today is the whole stack self-hosted via `docker compose up`
+on a homelab — see [Environments & workflow](#environments--workflow) — which
+is cheaper and simpler while there's no payment feature and no need for a CDN.
+Moving to the target setup later is a hosting change, not a code change,
+because storage is already S3-compatible and config is already env-driven.*
+
 ```
                    gjuvault.com                 api.gjuvault.com
   Student ────▶ ┌──────────────────┐  JSON   ┌──────────────────────────┐
@@ -92,13 +99,12 @@ For most students that's all. **Only if a student opts into slide auto-import** 
 - Sent over HTTPS only.
 - **"Forgot password?"** sends a reset link to the GJU inbox.
 
-### The GJU verifier (platform still to be confirmed)
-`accounts/gju_verifier.py` is one function, `verify(email, password) -> ok | wrong | unavailable`, so the backend can be swapped out:
-- **Moodle, if GJU's e-learning runs on it (preferred):** Moodle's `/login/token.php` endpoint is the documented API the official Moodle mobile app uses to log in. It's much more stable than scraping a web page, and it's the same endpoint the importer uses. It only works if GJU's Moodle uses its own passwords (not Microsoft single sign-on) and has mobile access enabled.
-- **Student portal login:** submit the portal's login form and detect success from the response. It works, but it breaks whenever the portal page changes.
-- **Microsoft 365, if GJU email is on Microsoft:** scripted password logins are mostly blocked, and the importer wouldn't work either. The route would be "Sign in with Microsoft."
+### The GJU verifier *(implemented)*
+`accounts/gju_verifier.py` exposes one function, `verify(email, password) -> ok | wrong | unavailable`, so the backend behind it can be swapped without touching callers. GJU's e-learning is not on Moodle (that route was dropped), so the implemented backend is:
+- **The MyGJU student portal**, driven by a real (stealth) Playwright/Chromium browser: MyGJU's WAF blocks plain headless HTTP requests and fingerprints headless browsers, so the verifier strips the automation fingerprint that gives it away, which lets it run fully headless in production. It submits the portal's login form and detects success from the response. This is more fragile than a documented API — it breaks whenever the portal page changes — which is why `unavailable` (not just `ok`/`wrong`) is a first-class result: it falls back to the email-verification flow instead of blocking signup.
+- **A circuit breaker** (`GJU_VERIFIER_BREAKER_THRESHOLD` / `_COOLDOWN_S`) stops making live attempts for a cooldown window after several consecutive `unavailable` results, so a WAF block or portal outage can't burn the shared server's IP across a burst of signups.
 
-**Future issues (not blocking launch):** 2FA or CAPTCHA on the GJU side would break the verifier and the importer. The email-verification fallback covers signup for that case.
+**Future issues (not blocking launch):** 2FA or CAPTCHA on the GJU side would break the verifier. The email-verification fallback covers signup for that case.
 
 ### Access rules
 - **Decided: public catalog, gated downloads.** Anyone can browse courses and file titles, which helps adoption and SEO. Downloading and uploading require a verified GJU account.
@@ -150,46 +156,14 @@ If an attacker fully compromises the **offline worker**, they can harvest passwo
 
 ## Data model (Django apps & models)
 
-```
-catalog/
-  Faculty       name
-  Major         faculty → Faculty, name
-  Course        code (unique, e.g. "CS 116"), name, faculty → Faculty,
-                majors ↔ Major (M2M)
-  Instructor    name
-
-resources/
-  Resource
-    course        → Course
-    type          past_paper | slides | notes | video | other
-    title
-    term          fall | spring | summer
-    year          int
-    instructor    → Instructor (nullable)
-    kind          file | link
-    file_key      object key (MinIO/S3)  (kind = file)
-    url           external link          (kind = link)
-    sha256        duplicate detection    (kind = file, indexed)
-    size_bytes, mime_type
-    uploader      → User (nullable for auto_import)
-    source        upload | telegram_import | auto_import
-    status        pending | approved | rejected | removed
-    link_status   ok | broken | unchecked
-    created_at, approved_at, approved_by → User
-  Vote          user, resource, value      (unique per user+resource)
-  Report        resource, reporter, reason (broken | wrong_course | duplicate |
-                inappropriate | copyright), note, status, created_at
-
-accounts/
-  User            custom user model (email as username), role: student | moderator | admin,
-                  approved_uploads_count, is_banned
-  GjuCredential   separate model, one-to-one → User, only exists for opted-in students
-                  ciphertext        Vault-transit ciphertext of the GJU password (never plaintext)
-                  opted_in_at, last_sync_at, last_sync_status
-                  — never exposed on any serializer, admin, or log
-```
-
-`GjuCredential` is deliberately a **separate model**, not fields on `User`, so it's trivial to keep it off every serializer and out of the admin, and to delete on revoke.
+The full, current model lives in **[docs/backend-data-model.md](backend-data-model.md)**
+— this used to duplicate it inline, which let the two drift apart as the
+schema grew (majors/courses/terms/offerings/schedules are all in an
+`academics` app now, not `catalog`). One thing worth repeating here because it
+shapes the auth design above: `GjuCredential` is deliberately a **separate
+model** from `User`, one-to-one, existing only for opted-in students, so it's
+trivial to keep off every serializer and out of the admin, and to delete
+outright the moment a student revokes.
 
 Use a **custom user model from day one**, because swapping it later in Django is painful.
 
@@ -266,26 +240,32 @@ Drive and YouTube links become `link` resources and get checked by `check_links`
 
 ## Environments & workflow
 
-- A **GitHub** monorepo. `main` → production auto-deploy (Render + Cloudflare Pages). PRs get preview deploys.
-- **Local dev:** `docker compose up` runs Postgres. Django runs on `:8000` and Vite on `:5173` (Vite proxies `/api` so cookies just work).
-- **Files in dev:** a separate R2 bucket (`gju-vault-dev`), or MinIO in docker compose so everything runs offline.
-- **Config** comes from env vars (`django-environ`). Secrets never go in git.
-- **GitHub Actions:** `ruff` + `pytest` for the backend and `eslint` + `tsc` + `vitest` for the frontend, on every PR.
-- **Python tooling:** `uv` for dependencies. **JS:** `pnpm`.
+- A **GitHub** monorepo. `main` → production auto-deploy (target hosting TBD; currently self-hosted on a homelab — see below). PRs get preview deploys once CI exists.
+- **Local dev / self-hosted deploy — one command:** `docker compose up` brings up the *whole* stack (Postgres, MinIO, a dev-mode Vault, Django, Vite) with zero manual setup, including loading the default academic catalog on first boot (`manage.py seed_academics`, see [docs/backend-data-model.md](backend-data-model.md)). Django runs on `:8000`, Vite on `:5173` (Vite proxies `/api` so cookies just work). Every service has a healthcheck and restarts automatically (`restart: unless-stopped`). See the top comment in `docker-compose.yml` for the hybrid mode (host backend/frontend, dockerized dependencies only).
+- **Files:** MinIO in docker compose for local dev; a homelab MinIO instance or R2/S3 in production, configured entirely through `backend/.env` (`S3_ENDPOINT_URL` and friends) — no code change either way.
+- **Config** comes from env vars (`django-environ`). Secrets never go in git (`backend/.env` is gitignored; `backend/.env.example` documents every variable).
+- **GitHub Actions** (planned, not yet set up): `ruff` + `pytest` for the backend and `eslint` + `tsc` + `vitest` for the frontend, on every PR.
 
 Repo layout:
 ```
 /backend
   manage.py
   config/            settings (base / dev / prod), urls, wsgi
-  accounts/          custom user, auth endpoints
-  catalog/           faculties, majors, courses, instructors
-  resources/         resources, votes, reports, uploads, search
-  fixtures/          seed data for faculties/majors/courses
+  accounts/          custom user, GJU verifier, Vault transit, auth endpoints
+  academics/         majors, subjects, courses, study plans, terms, offerings, schedules
+    fixtures/        the default catalog (gju_catalog.json) loaded by seed_academics
+  resources/         resources, votes, downloads, uploads, moderation, ingest API
+  moderation/        reports, audit log, takedown requests
+  integrations/      importer run/mapping bookkeeping
+  common/            shared abstract models, S3 storage helpers, cross-app commands
+                     (e.g. reset_student_data)
+  data/              study-plan PDFs and MyGJU page dumps used to build the catalog
 /frontend
   src/pages, src/components, src/api
-/docs                this plan
-docker-compose.yml   postgres (+ minio) for local dev
+/importers/telegram  standalone one-time Telegram-export importer (own requirements.txt)
+/scripts             one-off ops scripts (e.g. scripts/vault_dev_setup.sh)
+/docs                this plan, and docs/backend-data-model.md
+docker-compose.yml   the full stack: db, minio(+init), vault, backend, frontend
 ```
 
 ---

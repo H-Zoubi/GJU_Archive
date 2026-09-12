@@ -8,6 +8,13 @@ import tailwindcss from "@tailwindcss/vite";
 // docker-compose frontend service points this at the `backend` container.
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? "http://localhost:8000";
 
+// Only set inside the docker-compose frontend container (see
+// docker-compose.yml). Docker Desktop's bind mount from a Windows host
+// doesn't forward real filesystem-change events into the container, so Vite
+// never notices an edit without polling -- HMR silently keeps serving stale
+// content otherwise. Host-side `npm run dev` doesn't need this at all.
+const usePolling = process.env.VITE_WATCH_POLL === "true";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
@@ -18,5 +25,6 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: usePolling ? { usePolling: true, interval: 300 } : undefined,
   },
 });

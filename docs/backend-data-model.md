@@ -1,11 +1,11 @@
-# GJU Vault — Backend Data Model
+# GJU Archive — Backend Data Model
 
 Modeled to mirror GJU's real structure (from gju.edu.jo) and to leave room to grow. Each section is a Django **app**. Fields marked _(future)_ aren't needed for V1 but the schema is shaped so they slot in without a painful migration.
 
 **Design principles**
 - **People vs. identities are separate.** A *lecturer* is an academic entity that teaches courses (referenced by resources) whether or not they ever log in. A *User* is a login account. They link optionally.
 - **Roles via Django Groups, not hardcoded `if`s.** One `User.role` enum for the common case, but real permissions come from Django's Group/Permission system so new roles and fine-grained rights can be added later without code changes.
-- **The academic structure is reference data**, seeded and rarely edited, kept clean so browsing and the Moodle importer both hang off it.
+- **The academic structure is reference data**, seeded once (see `manage.py seed_academics` and [Default data & resetting student data](../README.md#default-data--resetting-student-data)) and rarely edited by hand afterwards, kept clean so browsing and every importer hang off it.
 - **Every model gets `created_at` / `updated_at`** (via an abstract `TimeStamped` base) and soft-deletable models get `is_deleted` + `deleted_at`.
 
 ---
@@ -18,7 +18,8 @@ Schools and departments are intentionally **left out** — they're org labels th
 Major   (e.g. Computer Engineering, Computer Science, Game Design, M.Sc. …)
 
 Course  (CS116 …) — belongs to one or more majors
-  └─ CourseOffering — one course taught in one term by instructor(s); maps to a Moodle course
+  └─ CourseOffering — one course taught in one term by instructor(s); a Moodle
+                       course maps onto it once a Moodle importer exists
 ```
 
 ---
@@ -33,8 +34,9 @@ User  (custom, AbstractBaseUser; email is the login)
   is_email_verified     bool
   is_gju_verified       bool     -- passed the GJU credential check at signup
   is_banned             bool
+  is_service_account    bool     -- a bot identity for an importer job (token auth, no session)
   is_active/is_staff/is_superuser   (Django built-ins; superadmin ⇒ is_superuser)
-  approved_uploads_count int      -- drives trusted-uploader auto-approve
+  approved_uploads_count int      -- drives trusted-uploader auto-approve (≥ 5)
   date_joined, last_login
   ── links ──
   instructor            O2O → academics.Instructor (nullable; set if this user IS a lecturer)
@@ -69,6 +71,12 @@ GjuCredential   (EXISTS ONLY for students who opt into slide auto-import)
 
 ## App: `academics` — the catalog (reference data)
 
+This is the app the [default-data seed](../README.md#default-data--resetting-student-data)
+covers: `manage.py seed_academics` loads a fixture built from real MyGJU
+course-section dumps and the published study-plan PDFs
+(`backend/academics/fixtures/gju_catalog.json`), and it's the one app a
+`reset_student_data` run never touches.
+
 ```
 Major
   name, code            -- "Computer Science", "CS"
@@ -76,6 +84,19 @@ Major
   partner_institution   nullable   -- e.g. PSUT, THWS (joint/transnational programs)
   slug
   is_active
+
+Subject         (a browsable grouping of courses, e.g. "Computer Science", "German")
+  name, slug
+  is_university_wide    bool  -- taken across majors (German, Arabic, Maths, Sports, ...),
+                                  so it belongs to no single major
+  sort_order
+
+SubjectPrefix   (one course-code prefix, e.g. "CS", "MECH", routed to a Subject)
+  prefix                unique -- several prefixes can map to one subject (GJU renumbered
+                                  courses over the years, e.g. ME + MECH + TME -> Mechanical)
+  subject               FK → Subject
+  majors                M2M → Major  -- majors this prefix serves, as a fallback for
+                                         courses no study plan mentions at all
 
 Instructor     (a lecturer / faculty member — academic entity, may have no login)
   full_name
@@ -87,13 +108,28 @@ Instructor     (a lecturer / faculty member — academic entity, may have no log
 Course
   code                  unique, normalized -- "CS116" (also store display "CS 116")
   name
-  majors                M2M → Major            -- a course can serve several majors
+  majors                M2M → Major            -- who takes this course, from the student's
+                                                    side (see ProgramCourse below)
+  code_prefix           indexed -- "CS" from "CS223", backs Subject lookups
+  subject               FK → Subject (nullable)
   credit_hours          nullable
-  level                 nullable -- 100/200/300 tier _(future)_
+  level                 nullable -- 100/200/300 tier
   description           nullable
   prerequisites         M2M → Course (self, symmetrical=False)   -- MyGJU-style prereqs
-  corequisites          M2M → Course (self) _(future)_
+  corequisites          M2M → Course (self, symmetrical=False)
   slug
+
+ProgramCourse   (one line of a major's published study plan)
+  major                 FK → Major
+  course                FK → Course
+  category              university | school | program | remedial
+  requirement           compulsory | elective
+  section               free text -- the plan heading this was parsed from, kept verbatim
+  track                 free text -- e.g. "Automotive & E-Mobility Track"
+  plan_year
+  confident             bool -- False when the PDF parser had to guess; flags rows for review
+  note
+  (unique: major+course+track)
 
 Term            (a semester)
   season                first | second | summer
@@ -105,29 +141,42 @@ CourseOffering  (a "section": one course, one term, taught by instructor(s))
   term                  FK → Term
   instructors           M2M → Instructor
   section_number        nullable -- e.g. "1", "2"
-  campus                nullable -- Madaba / Jabal Amman _(future)_
-  language              nullable enum: english | arabic | german _(future)_
-  capacity              nullable int _(future; live seat counts NOT synced — too volatile)_
-  moodle_course_id      nullable int            -- set by the importer; maps Moodle → our catalog
+  campus                nullable _(future)_
+  language              nullable enum: english | arabic | german
+  capacity              nullable int (live seat counts NOT synced — too volatile)
+  moodle_course_id      nullable int            -- reserved for a future Moodle importer
   (unique: course+term+section_number)
 
-MeetingTime     (a section's weekly schedule slot)   _(future — MyGJU-like)_
+MeetingTime     (a section's weekly schedule slot — MyGJU-like)
   offering              FK → CourseOffering
   kind                  lecture | lab | tutorial
-  day_of_week           sun | mon | tue | wed | thu
+  day_of_week           sun | mon | tue | wed | thu | fri | sat
   start_time, end_time
   room                  nullable -- hall/lab
 
-ExamSchedule    (a section's exam sitting)   _(future — MyGJU-like)_
+ExamSchedule    (a section's exam sitting — MyGJU-like)   _(model exists; not yet imported)_
   offering              FK → CourseOffering
   kind                  midterm | final | quiz
   starts_at             datetime
   room                  nullable
 ```
 
-Why the `Course ↔ Major` M2M: the same course (e.g. a shared math or German course) shows up under several majors, so students find it whichever major they browse.
+Why `Course.majors` vs. `ProgramCourse`: they answer different questions.
+`Course.majors` is derived (from `SubjectPrefix.majors`, or from a study plan
+naming the course) and says roughly "who tends to take this"; a
+`ProgramCourse` row is a claim quoted from a specific plan PDF and says "this
+major's plan requires this course" — with its own category/requirement, since
+the same course can be compulsory in one major's plan and elective in
+another's. `manage.py import_study_plans` populates `ProgramCourse` from the
+PDFs; `manage.py seed_subjects` then derives `Course.majors` from whichever is
+the stronger signal (a study plan mention beats the code-prefix fallback).
 
-Why `CourseOffering` is the center of gravity: it's simultaneously the **MyGJU-style section** (instructor, schedule, room, exams), the **archive anchor** (a resource is "CS116, Second 2025, Dr. X"), the **Moodle mapping** (`moodle_course_id`), and the raw material for **instructor course history** (below). V1 can attach resources straight to `Course` + `Term`; the richer section fields fill in as we get the data.
+Why `CourseOffering` is the center of gravity: it's simultaneously the
+**MyGJU-style section** (instructor, schedule, room, exams), the **archive
+anchor** (a resource can be "CS116, Second 2025, Dr. X"), the eventual
+**Moodle mapping** (`moodle_course_id`), and the raw material for
+**instructor course history** (below). A resource can also attach straight to
+`Course` + `Term` when the exact section isn't known.
 
 ### Instructor & course history (no new tables — it's all `CourseOffering`)
 
@@ -152,12 +201,14 @@ Resource
   type                  ResourceType (below)
   title
   description           nullable
+  tags                  M2M → Tag
   kind                  file | link
   ── file (kind=file) ──
   file_key              object key in MinIO/S3
-  sha256                indexed, for dedup
+  sha256                indexed, for dedup (unique per course, ignoring blanks)
   size_bytes, mime_type, original_filename
-  page_count            nullable _(future, for PDFs)_
+  upload_completed_at   nullable -- null means an abandoned upload; nothing is served
+                                     from one, and `purge_files` sweeps it
   ── link (kind=link) ──
   url
   link_status           ok | broken | unchecked
@@ -167,21 +218,24 @@ Resource
   status                pending | approved | rejected | removed
   visibility            public_meta | gju_only          -- catalog vs. download gating
   approved_at, approved_by FK → User
-  is_deleted, deleted_at  -- soft delete; purged from storage after 30 days
+  is_deleted, deleted_at  -- soft delete; purged from storage after a grace period
   created_at, updated_at
 
-ResourceType   (fixed table/enum, extensible)
-  past_paper | midterm | final | quiz | assignment | solution |
-  slides | lecture_notes | summary | lab | project | book | video | other
+ResourceType   (deliberately coarse — see resources/models.py for why)
+  slides | exam | assignment | notes | lab | book | video | other
 
-Tag            (free-form labels, M2M to Resource)   _(future)_
+Tag            (free-form labels, M2M to Resource)
   name, slug
+
+Download   (one row per file handed out — the only source of truth for
+            "how many downloads has this user used", so a future quota-based
+            paywall has something to count)
+  user                  FK → User (nullable)
+  resource              FK → Resource
+  created_at
 
 Vote
   user, resource, value(+1)   (unique user+resource)
-
-ResourceAttachment   _(future: multi-file resources, e.g. a full course pack)_
-  resource FK, file_key, size_bytes, sha256
 ```
 
 ---
@@ -214,17 +268,19 @@ A `copyright` report hides the resource immediately (sets `status=removed`) pend
 
 ---
 
-## App: `integrations` — Moodle importer & sync logs
+## App: `integrations` — importer run/mapping bookkeeping
 
 ```
-ImportRun   (one execution of the weekly importer for one user)
+ImportRun   (one execution of an importer job for one user)   -- model exists;
+                                                                   no scheduled worker writes it yet
   user                  FK → User
   started_at, finished_at
   status                success | partial | auth_failed | error
   courses_seen, files_added, files_skipped
   message               nullable
 
-MoodleCourseMap   (learned mapping Moodle course → our catalog)
+MoodleCourseMap   (learned mapping Moodle course → our catalog)   -- model exists;
+                                                                      reserved for a future Moodle importer
   moodle_course_id      unique
   offering              FK → CourseOffering (nullable)
   course                FK → Course (nullable)
@@ -232,22 +288,39 @@ MoodleCourseMap   (learned mapping Moodle course → our catalog)
   confidence            auto | confirmed
 ```
 
-The importer (offline worker) decrypts a `GjuCredential` via Vault, mints a Moodle token, walks `core_course_get_contents`, dedups by `sha256`, uploads new files to MinIO, and writes `Resource(source=auto_import)` rows plus an `ImportRun`. It never exposes the password; see the tech plan's credential section.
+The weekly slide auto-import worker these models are shaped for isn't built
+yet: today the GJU credential verifier
+(`accounts/gju_verifier.py`) and Vault transit plumbing
+(`accounts/vault_transit.py`) exist and are live at signup, but the offline
+worker that would decrypt a `GjuCredential`, walk a student's courses and
+write `Resource(source=auto_import)` rows is still just the plan described in
+[the tech plan](tech-plan.md#slide-auto-import--credential-handling). What's
+actually seeded content today: `manage.py import_mygju` (real GJU course
+sections, pasted from the MyGJU portal), `manage.py import_study_plans` (the
+published study-plan PDFs), and the standalone `importers/telegram/` script
+(a one-time bulk import from an exported Telegram group).
 
 ---
 
-## What V1 actually builds (the rest is scaffolding)
+## What's actually built vs. scaffolding
 
-**Concrete now:** `User`, `Major`, `Instructor`, `Course`, `Term`, `Resource`, `ResourceType`, `Report`, `AuditLog`, `Vote`.
-**Shaped now, filled later:** `CourseOffering`, `MeetingTime`, `ExamSchedule`, `StudentProfile`, `GjuCredential`, `ImportRun`, `MoodleCourseMap`, `Tag`.
+**Implemented and in everyday use:** `User`, `Major`, `Subject`, `SubjectPrefix`,
+`Instructor`, `Course`, `ProgramCourse`, `Term`, `CourseOffering`,
+`MeetingTime`, `Resource`, `ResourceType`, `Tag`, `Vote`, `Download`, `Report`,
+`AuditLog`, `StudentProfile`, `GjuCredential`.
+**Modeled, not yet populated by a running process:** `ExamSchedule`,
+`TakedownRequest`, `ImportRun`, `MoodleCourseMap` — the schema is shaped so
+these slot in without a migration once the corresponding feature (exam-time
+scraping, formal takedown flow, the Moodle worker) is built.
 
-This keeps the first migration small while guaranteeing the big features (per-semester offerings, schedules, instructor history, the Moodle importer) don't require reshaping the core tables. Note: **instructor and course history need no new tables** — they fall out of `CourseOffering`, so building it early pays off twice.
+Note: **instructor and course history need no new tables** — they fall out of
+`CourseOffering`, so building it early paid off twice.
 
 ---
 
-## Open questions for the model
+## Resolved questions
 
 - [x] ~~Tracks / sub-majors?~~ No — dropped. Majors have no sub-majors.
 - [x] ~~Semester set?~~ **First / Second / Summer.**
-- [ ] Course code format: usually like `CS116` — I'll normalize codes (strip spaces/case) so `CS116`, `CS 116`, `cs-116` all match. Flag any odd formats when you seed the course list.
-- [ ] **Where does section/schedule/instructor data come from?** Options: (a) enter it by hand for popular courses, (b) students fill it as they upload, (c) later, a MyGJU importer. MyGJU is login-only and a fragile JSF portal, so I'd not scrape it in V1 — offerings would be created by the Moodle importer (which knows course + term + your instructor) and by uploaders picking the semester/instructor. Confirm that's acceptable.
+- [x] ~~Course code format?~~ Normalized on write (`academics.normalize_code`): strips spaces/case so `CS116`, `CS 116`, `cs-116` all match; `display_code` keeps the human-readable form.
+- [x] ~~Where does section/schedule/instructor data come from?~~ `manage.py import_mygju`, fed by course-section pages pasted/saved from the real MyGJU portal (see `backend/data/README.md`) — a real Moodle importer was never needed for this part.
