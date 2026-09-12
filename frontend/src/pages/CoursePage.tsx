@@ -76,6 +76,8 @@ export default function CoursePage({ code, onBack }: Props) {
         </p>
       )}
 
+      <CourseFiles courseCode={course.code} />
+
       <section className="mt-8">
         <h2 className="text-sm font-medium text-slate-500 mb-3">
           Offered in {history.length} semester
@@ -123,7 +125,6 @@ export default function CoursePage({ code, onBack }: Props) {
         )}
       </section>
 
-      <CourseFiles courseCode={course.code} />
     </div>
   );
 }
