@@ -73,7 +73,7 @@ class UploadFlowTests(TestCase):
     def _start(self, **overrides):
         payload = {
             "course": "CS116",
-            "type": "past_paper",
+            "type": "exam",
             "title": "Midterm 2023",
             "filename": "midterm.pdf",
             "size_bytes": len(PDF_BYTES),
@@ -198,7 +198,7 @@ class DownloadGateTests(TestCase):
         self.course = Course.objects.create(code="CS116", name="Programming")
         self.resource = Resource.objects.create(
             course=self.course,
-            type="past_paper",
+            type="exam",
             title="Midterm 2023",
             kind=Resource.Kind.FILE,
             file_key=storage.build_key(PDF_SHA, "midterm.pdf"),

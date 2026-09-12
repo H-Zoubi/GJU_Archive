@@ -9,20 +9,19 @@ import {
   type UploadStage,
 } from "../lib/files";
 
-// A native <select> renders text only, so the type list is marked with emoji.
-// The file-format badges below are real DOM and can be styled properly.
+// Kept short on purpose: nobody tags consistently across a dozen
+// near-synonyms, and a course where the same exam is filed four ways is
+// harder to search than one tagged bluntly. Mirrors ResourceType in
+// resources/models.py, minus "video", which only applies to links.
+//
+// A native <select> renders text only, so these are marked with emoji. The
+// file-format badges below are real DOM and can be styled properly.
 const TYPES = [
-  ["past_paper", "📄 Past paper"],
-  ["midterm", "📝 Midterm"],
-  ["final", "🎓 Final"],
-  ["quiz", "❓ Quiz"],
-  ["assignment", "📋 Assignment"],
-  ["solution", "✅ Solution"],
   ["slides", "📊 Slides"],
-  ["lecture_notes", "📓 Lecture notes"],
-  ["summary", "📑 Summary"],
+  ["exam", "📝 Exams & quizzes"],
+  ["assignment", "📋 Assignments & projects"],
+  ["notes", "📓 Notes & summaries"],
   ["lab", "🔬 Lab"],
-  ["project", "🛠️ Project"],
   ["book", "📚 Book"],
   ["other", "📦 Other"],
 ] as const;
@@ -31,7 +30,7 @@ const TYPES = [
  * What the file actually is, by extension.
  *
  * Separate from the resource `type` above: that says what the file is *for*
- * (a midterm, a summary), this says what will open it. A student scanning the
+ * (an exam, a summary), this says what will open it. A student scanning the
  * list wants to know at a glance which rows are slide decks.
  */
 const FORMATS: Record<string, { label: string; className: string }> = {

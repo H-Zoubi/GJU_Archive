@@ -6,18 +6,25 @@ from common.models import SoftDeleteModel, TimeStampedModel
 
 
 class ResourceType(models.TextChoices):
-    PAST_PAPER = "past_paper", "Past paper"
-    MIDTERM = "midterm", "Midterm"
-    FINAL = "final", "Final"
-    QUIZ = "quiz", "Quiz"
-    ASSIGNMENT = "assignment", "Assignment"
-    SOLUTION = "solution", "Solution"
+    """
+    What a resource is, kept deliberately coarse.
+
+    An earlier version split this fourteen ways -- past paper / midterm /
+    final / quiz as four separate things, notes and summaries as two. Nobody
+    tags consistently across that many near-synonyms, and a catalogue where
+    the same exam is filed four different ways is harder to search than one
+    with a single blunt "Exams & quizzes". The term and title carry the
+    detail that these distinctions were trying to hold.
+    """
+
     SLIDES = "slides", "Slides"
-    LECTURE_NOTES = "lecture_notes", "Lecture notes"
-    SUMMARY = "summary", "Summary"
+    EXAM = "exam", "Exams & quizzes"
+    ASSIGNMENT = "assignment", "Assignments & projects"
+    NOTES = "notes", "Notes & summaries"
     LAB = "lab", "Lab"
-    PROJECT = "project", "Project"
     BOOK = "book", "Book"
+    # Links only: videos are never rehosted, so this is not offered when
+    # uploading a file.
     VIDEO = "video", "Video"
     OTHER = "other", "Other"
 
