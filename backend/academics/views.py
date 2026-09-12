@@ -1,8 +1,8 @@
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from rest_framework import viewsets
 from rest_framework.filters import SearchFilter
 
-from .models import Course, Instructor, Major, Subject, Term
+from .models import Course, Instructor, Major, ProgramCourse, Subject, Term
 from .serializers import (
     CourseDetailSerializer,
     CourseListSerializer,
@@ -58,13 +58,34 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
         qs = Course.objects.select_related("subject").order_by("code")
         major = self.request.query_params.get("major")
         if major:
-            # Students on a major also take the courses everyone takes —
-            # German, Maths, University Requirements — which belong to no
-            # major. Excluding them made a Translation student's search for
-            # "german" return nothing, so the filter includes them.
+            # Three ways a course belongs to a major, in descending order of
+            # how much we trust them:
+            #   - the major's published study plan names it (hard evidence,
+            #     and the only thing that catches a CE elective numbered CS);
+            #   - the code prefix maps to the major (a heuristic);
+            #   - everyone takes it — German, Maths, University Requirements —
+            #     and it belongs to no major at all. Excluding these made a
+            #     Translation student's search for "german" return nothing.
             qs = qs.filter(
-                Q(majors__slug=major) | Q(subject__is_university_wide=True)
+                Q(plan_entries__major__slug=major)
+                | Q(majors__slug=major)
+                | Q(subject__is_university_wide=True)
             )
+            # Whether a course is compulsory is a fact about a major's study
+            # plan, not about the course, so it can only be attached once a
+            # major is named. Courses the plan does not mention stay null
+            # rather than being called electives, which would assert more
+            # than the PDF says.
+            plan = ProgramCourse.objects.filter(
+                major__slug=major, course=OuterRef("pk")
+            ).order_by("requirement")  # "compulsory" < "elective"
+            qs = qs.annotate(
+                requirement=Subquery(plan.values("requirement")[:1]),
+                requirement_category=Subquery(plan.values("category")[:1]),
+            )
+            requirement = self.request.query_params.get("requirement")
+            if requirement in {"compulsory", "elective"}:
+                qs = qs.filter(requirement=requirement)
         subject = self.request.query_params.get("subject")
         if subject:
             qs = qs.filter(subject__slug=subject)

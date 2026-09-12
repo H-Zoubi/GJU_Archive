@@ -38,9 +38,24 @@ class InstructorSerializer(serializers.ModelSerializer):
 
 
 class CourseListSerializer(serializers.ModelSerializer):
+    # Only populated when the request filters by major, since "is this
+    # compulsory" has no answer until you say compulsory for whom. Null means
+    # either no major filter, or the major's plan does not list this course.
+    requirement = serializers.CharField(read_only=True, default=None)
+    requirement_category = serializers.CharField(read_only=True, default=None)
+
     class Meta:
         model = Course
-        fields = ["id", "code", "display_code", "name", "credit_hours", "slug"]
+        fields = [
+            "id",
+            "code",
+            "display_code",
+            "name",
+            "credit_hours",
+            "slug",
+            "requirement",
+            "requirement_category",
+        ]
 
 
 class OfferingSerializer(serializers.ModelSerializer):

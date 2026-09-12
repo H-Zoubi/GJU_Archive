@@ -31,5 +31,8 @@ Thumbs.db
 # Raw MyGJU page dumps (large; regenerate by saving the page — see backend/data/README.md)
 /backend/data/*.txt
 
+# Study-plan PDFs (large; re-fetch with manage.py fetch_study_plans)
+/backend/data/study_plans/
+
 # Misc
 *.log

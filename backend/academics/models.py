@@ -161,6 +161,65 @@ class Course(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class ProgramCourse(TimeStampedModel):
+    """
+    One line of a major's study plan: this course, in this major, is
+    compulsory or elective.
+
+    Kept separate from Course.majors because the two answer different
+    questions. Course.majors is derived from the course code and says
+    roughly "who tends to take this"; a ProgramCourse row is a claim
+    quoted from a published plan PDF and says "the plan requires this".
+    A course can sit in several majors' plans with a different status in
+    each — CS116 is compulsory for CE and elective elsewhere — which a
+    field on Course could not express.
+    """
+
+    class Category(models.TextChoices):
+        UNIVERSITY = "university", "University requirement"
+        SCHOOL = "school", "School requirement"
+        PROGRAM = "program", "Program requirement"
+        REMEDIAL = "remedial", "Remedial"
+
+    class Requirement(models.TextChoices):
+        COMPULSORY = "compulsory", "Compulsory"
+        ELECTIVE = "elective", "Elective"
+
+    major = models.ForeignKey(Major, on_delete=models.CASCADE, related_name="plan_courses")
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="plan_entries")
+
+    category = models.CharField(max_length=12, choices=Category.choices)
+    requirement = models.CharField(max_length=12, choices=Requirement.choices)
+
+    # The heading the parser read this from, e.g. "3.2 Program Requirements
+    # (Electives)". Kept verbatim so a surprising classification can be
+    # checked against the PDF without re-running the import.
+    section = models.CharField(max_length=200, blank=True)
+    # Tracks, where a plan has them ("Automotive & E-Mobility Track").
+    track = models.CharField(max_length=120, blank=True)
+    plan_year = models.CharField(max_length=20, blank=True)
+
+    # False when the parser had to guess — an unnumbered heading, or one
+    # naming neither compulsory nor elective. These are the rows a human
+    # should review; nothing downstream should present them as certain.
+    confident = models.BooleanField(default=True)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["major", "category", "course"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["major", "course", "track"], name="uniq_plan_course"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["major", "requirement"]),
+        ]
+
+    def __str__(self):
+        return f"{self.major.code} {self.course.code} ({self.get_requirement_display()})"
+
+
 class Term(TimeStampedModel):
     class Season(models.TextChoices):
         FIRST = "first", "First"
