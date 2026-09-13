@@ -49,8 +49,12 @@ class GjuSessionError(Exception):
     """authenticated_session() could not produce a logged-in page."""
 
 LOGIN_URL = "https://mygju.gju.edu.jo/faces/index.xhtml"
-USERNAME_SELECTOR = 'input[name="j_idt15:login_username"]'
-PASSWORD_SELECTOR = 'input[name="j_idt15:login_password"]'
+# The "j_idtNN" form-id prefix is a JSF-generated identifier that shifts
+# whenever the portal is redeployed (seen j_idt15 -> j_idt19 in the wild), so
+# match on the stable "login_username"/"login_password" suffix instead of the
+# volatile prefix.
+USERNAME_SELECTOR = 'input[name$=":login_username"]'
+PASSWORD_SELECTOR = 'input[name$=":login_password"]'
 
 # Substrings (matched case-insensitively against the post-login page text /
 # URL) that classify the outcome. Order of checks matters: a WAF block can
